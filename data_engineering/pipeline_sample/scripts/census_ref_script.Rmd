@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+# 1. Load Libraries and add API Key
+
+```{r}
+library(tidycensus)
+library(tidyverse)
+library(foreign)
+library(tools)
+library(stringr)
+library(rmarkdown)
+
+census_api_key("bfa4d755b0ada9eb3d48921a515ef007a21f9749", install=TRUE, overwrite=TRUE)
+```
+
+```{r}
+city_pops <- get_acs(geography = "county subdivision", variables = c(Women = "B05003_019", Men = "B05003_008"), state= "MA", year = 2020, survey = "acs5")
+
+names(city_pops)[names(city_pops) == "variable"] <- "Gender"
+names(city_pops)[names(city_pops) == "NAME"] <- "Town"
+
+city_pops <- city_pops %>%
+  mutate(Town = sub(" town.*", "", Town)) %>%
+  mutate(Town = sub(" city*", "", Town)) %>%
+  mutate(Town = sub(",.*", "", Town)) %>%
+  mutate(Town = sub(" Town.*", "", Town))
+
+city_pops <- city_pops %>%
+  group_by(Town) %>%
+  summarise(Total = sum(estimate))
+
+city_pops %>%
+  write.csv("~/DS-analytics-team/open_data/firearms/city_pops_18_plus.csv")
+```
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

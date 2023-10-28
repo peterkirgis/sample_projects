@@ -1,0 +1,4 @@
+COPY INTO temp_upload_applications
+  FROM @firearms_applications_s3_stage
+  PATTERN='.*Applications.*.csv'
+  ON_ERROR = 'continue';

@@ -1,0 +1,43 @@
+CREATE
+OR REPLACE TABLE applications AS
+SELECT
+    application_date AS "Application Date",
+    licensing_authority AS "Licensing Authority",
+    license_type AS "License Type",
+    application_type AS "Application Type",
+    applicant_city AS "Applicant City",
+    applicant_zip AS "Applicant Zip",
+    sex AS "Sex",
+    issue_date AS "Issue Date",
+    expiration_date AS "Expiration Date",
+    denial_date AS "Denial Date",
+    restriction AS "Restriction",
+    status AS "Status",
+    'Started' AS "Application Status",
+    CASE
+        WHEN issue_date IS NULL
+        AND denial_date IS NOT NULL THEN 'Denied'
+        WHEN issue_date IS NOT NULL THEN 'Issued'
+        ELSE 'Incomplete'
+    END AS "Application Issue Status",
+    CASE
+        WHEN status = 'Active' THEN 'Active'
+        WHEN status = 'Revoked' THEN 'Revoked'
+        WHEN status = 'Suspended' THEN 'Suspended'
+        WHEN status = 'Expired'
+        OR expiration_date IS NOT NULL THEN 'Expired'
+        WHEN status IS NULL THEN 'None'
+        ELSE 'Other'
+    END AS "License Status"
+FROM
+    standardization.standardized_applications
+WHERE
+    license_type IN (
+        'Resident CLASS A Large Capacity License to Carry Firearms',
+        'Firearms Identification Card',
+        'Non Resident CLASS A Large Capacity Temp. License to Carry Firearms',
+        'Resident License to Possess a Machine Gun',
+        'Resident Alien Permit to Possess Non-Capacity Rifle/Shotgun',
+        'Non-Resident CLASS A Large Capacity Firearms Employemnt/Military Temp. LTC',
+        'Resident CLASS B Non-Large Capacity License to Carry Firearms'
+    );

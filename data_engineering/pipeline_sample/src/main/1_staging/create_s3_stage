@@ -1,0 +1,4 @@
+CREATE OR REPLACE STAGE firearms_applications_s3_stage
+  STORAGE_INTEGRATION = FIREARMS_APPLICATIONS_STAGE_UPDATED
+  URL = 's3://data-team-snowflake-test-bucket/Applications/'
+  FILE_FORMAT = s3_file_format;

@@ -1,0 +1,4 @@
+CREATE OR REPLACE city_pops_18_plus(
+    town VARCHAR,
+    total NUMERIC
+);

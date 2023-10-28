@@ -1,0 +1,16 @@
+CREATE
+OR REPLACE TABLE active_licenses AS
+SELECT
+    licensing_authority,
+    license_type,
+    COUNT(*) AS COUNT
+FROM
+    standardization.standardized_applications
+WHERE
+    status = 'Active'
+GROUP BY
+    licensing_authority,
+    license_type
+ORDER BY
+    licensing_authority,
+    license_type ASC;

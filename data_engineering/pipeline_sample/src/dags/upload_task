@@ -1,0 +1,23 @@
+CREATE OR REPLACE TASK  data_upload
+  WAREHOUSE = COMPUTE_WH
+AS
+  BEGIN 
+      TRUNCATE TABLE TEMP_UPLOAD_APPLICATIONS;
+      COPY INTO temp_upload_applications
+      FROM @firearms_applications_s3_stage
+      PATTERN='.*Applications.*.csv'
+      ON_ERROR = 'continue';
+
+      TRUNCATE TABLE MASS_ZIPS;
+      COPY INTO mass_zips
+      FROM @firearms_applications_s3_stage
+      PATTERN='.*zipcode.*.csv'
+      ON_ERROR = 'continue';
+
+      TRUNCATE TABLE city_pops_18_plus;
+      COPY INTO city_pops_18_plus
+      FROM @firearms_applications_s3_stage
+      PATTERN='.*city_pops.*.csv'
+      ON_ERROR = 'continue';
+      
+  END;

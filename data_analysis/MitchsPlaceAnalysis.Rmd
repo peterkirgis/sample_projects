@@ -1,0 +1,709 @@
+---
+title: "Mitch's Place Analysis"
+author: "Peter Kirgis"
+date: "07/14/2021"
+output: pdf_document
+---
+
+```{r include = 'FALSE', error=FALSE, message=FALSE, warning=FALSE}
+"Notes from convo with Leslie:
+- for demographics, unique individuals not enrollments
+- for living situation, use enrollments
+- for chronic, use last enrollment date for each client
+- look at unique individuals year by year
+- enrollments by individuals
+- take average of income, disability for each client's enrollments in a given year
+- look at destinations by number of visits per client
+- look at the percentage going to shelter from Mitch's year by year
+- look at permanent housing destinations year by year
+- look at the total number of people with no income at entry
+- look at income on entry on each progressive time at shelter
+- look at what fraction of disability is substance abuse, and how much of disability in recidivism is from substance abuse
+
+-- LOOK AT HOW MANY ARE GOING INTO SUBSIDIZED RENTALS EACH YEAR"
+```
+
+
+```{r setup, include='FALSE', message=FALSE, warning=FALSE, error=FALSE}
+library(tidyverse)
+library(scales)
+library(reshape2)
+library(DBI)
+library(broom)
+library(eeptools)
+library(aod)
+library(forcats)
+library(jtools)
+library(kableExtra)
+library(lubridate)
+library(janitor)
+library(tinytex)
+library(float)
+```
+
+```{r clean up fields, include= FALSE, error=FALSE, warning=FALSE, message=FALSE}
+
+client_list <- read.csv("/Users/Admin/Documents/My Drive/EmmausData/MitchsData/mitchs00_20_revised.csv")
+
+#convert demographics into categorical variables
+
+client_list$Gender[client_list$Gender==1] <- "Male"
+client_list$Gender[client_list$Gender==0] <- "Female"
+client_list$Gender[client_list$Gender==2] <- "Trans Female"
+
+client_list$Ethnicity[client_list$Ethnicity==1] <- "Hispanic"
+client_list$Ethnicity[client_list$Ethnicity==0] <- "Non-Hispanic"
+
+
+#create age variable and convert destination to categorical
+
+
+client_list$Destination_1 <- ""
+client_list$Destination_1[client_list$Destination == 13] <- "Staying with Friends, temporary"
+client_list$Destination_1[client_list$Destination == 12] <- "Staying with Family, temporary"
+client_list$Destination_1[client_list$Destination == 1] <- "Emergency Shelter or Paid Motel"
+client_list$Destination_1[client_list$Destination == 6] <- "Hospital, non-psychiatric"
+client_list$Destination_1[client_list$Destination == 20] <- "Rental by Client, other subsidy"
+client_list$Destination_1[client_list$Destination == 16] <- "Place Not Meant for Habitation"
+client_list$Destination_1[client_list$Destination == 10] <- "Rental by Client, no subsidy"
+client_list$Destination_1[client_list$Destination == 17] <- "Other"
+client_list$Destination_1[client_list$Destination == 7] <- "Prison or Juvenile Detention Facility"
+client_list$Destination_1[client_list$Destination == 22] <- "Staying with Family, permanent"
+client_list$Destination_1[client_list$Destination == 23] <- "Staying with Friends, permanent"
+client_list$Destination_1[client_list$Destination == 25] <- "Nursing Home"
+client_list$Destination_1[client_list$Destination == 19] <- "Rental by Client, VASH Subsidy"
+client_list$Destination_1[client_list$Destination == 18] <- "Safe Haven"
+client_list$Destination_1[client_list$Destination == 2] <- "Transitional Housing"
+client_list$Destination_1[client_list$Destination == 4] <- "Psychiatric Hospital"
+client_list$Destination_1[client_list$Destination == 5] <- "Substance Abuse Treatment"
+client_list$Destination_1[client_list$Destination == 31] <- "Rental by client, with RRH or equivalent subsidy"
+client_list$Destination_1[client_list$Destination == 24] <- "Deceased"
+client_list$Destination_1[client_list$Destination == 8] <- "Client doesn't know"
+client_list$Destination_1[client_list$Destination == 9] <- "Client refused"
+client_list$Destination_1[client_list$Destination == 99] <- "Data Not Collected"
+client_list$Destination_1[client_list$Destination == 30] <- "Exit Interview Not Conducted"
+client_list$Destination_1[client_list$Destination == 36] <- "Staying or living in a friend's room, apartment or house"
+client_list$Destination_1[client_list$Destination == 35] <- "Staying or living in a family member's room, apartment or house"
+client_list$Destination_1[client_list$Destination == 14] <- "Hotel Paid for without emergency shelter voucher"
+client_list$Destination_1[client_list$Destination == 11] <- "Owned by client, no ongoing housing subsidy"
+client_list$Destination_1[client_list$Destination == 3] <- "Permanent housing (other than RRH) for formerly homeless persons"
+client_list$Destination_1[client_list$Destination == 29] <- "Residential project or halfway house with no homeless criteria"
+
+
+client_list$LivingSituation_1 <- ""
+client_list$LivingSituation_1[client_list$LivingSituation == 13] <- "Staying with Friends, temporary"
+client_list$LivingSituation_1[client_list$LivingSituation == 12] <- "Staying with Family, temporary"
+client_list$LivingSituation_1[client_list$LivingSituation == 1] <- "Emergency Shelter or Paid Motel"
+client_list$LivingSituation_1[client_list$LivingSituation == 6] <- "Hospital, non-psychiatric"
+client_list$LivingSituation_1[client_list$LivingSituation == 20] <- "Rental by Client, other subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 16] <- "Place Not Meant for Habitation"
+client_list$LivingSituation_1[client_list$LivingSituation == 10] <- "Rental by Client, no subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 17] <- "Other"
+client_list$LivingSituation_1[client_list$LivingSituation == 7] <- "Prison or Juvenile Detention Facility"
+client_list$LivingSituation_1[client_list$LivingSituation == 22] <- "Staying with Family, permanent"
+client_list$LivingSituation_1[client_list$LivingSituation == 23] <- "Staying with Friends, permanent"
+client_list$LivingSituation_1[client_list$LivingSituation == 25] <- "Nursing Home"
+client_list$LivingSituation_1[client_list$LivingSituation == 19] <- "Rental by Client, VASH Subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 18] <- "Safe Haven"
+client_list$LivingSituation_1[client_list$LivingSituation == 2] <- "Transitional Housing"
+client_list$LivingSituation_1[client_list$LivingSituation == 4] <- "Psychiatric Hospital"
+client_list$LivingSituation_1[client_list$LivingSituation == 5] <- "Substance Abuse Treatment"
+client_list$LivingSituation_1[client_list$LivingSituation == 36] <- "Staying or living in a friend's room, apartment or house"
+client_list$LivingSituation_1[client_list$LivingSituation == 35] <- "Staying or living in a family member's room, apartment or house"
+client_list$LivingSituation_1[client_list$LivingSituation == 14] <- "Hotel Paid for without emergency shelter voucher"
+
+client_list$LivingSituation_1[client_list$LivingSituation == 31] <- "Rental by client, with RRH or equivalent subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 24] <- "Deceased"
+client_list$LivingSituation_1[client_list$LivingSituation == 8] <- "Client doesn't know"
+client_list$LivingSituation_1[client_list$LivingSituation == 9] <- "Client refused"
+client_list$LivingSituation_1[client_list$LivingSituation == 99] <- "Data Not Collected"
+client_list$LivingSituation_1[client_list$LivingSituation == 30] <- "Exit Interview Not Conducted"
+client_list$LivingSituation_1[client_list$LivingSituation == 11] <- "Owned by client, no ongoing housing subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 3] <- "Permanent housing (other than RRH) for formerly homeless persons"
+client_list$LivingSituation_1[client_list$LivingSituation == 29] <- "Residential project or halfway house with no homeless criteria"
+
+client_list <- client_list %>%
+  select(EnrollmentID, PersonalID, FirstName, LastName, DOB, Race, Ethnicity, Gender, EntryDate, ExitDate, LivingSituation, LivingSituation_1, TimesHomelessPastThreeYears, MonthsHomelessPastThreeYears, DomesticViolenceVictim, CurrentlyFleeing, DisablingCondition, DisabilityTotal, IncomeFromAnySource, TotalMonthlyIncome, Earned, Destination, Destination_1, DataCollectionStage) %>%
+  mutate(EntryDate = as.Date(EntryDate, format = "%Y-%m-%d"),
+         EntryYear = format(as.Date(EntryDate, format = "%Y-%m-%d"), "%Y"),
+         ExitDate = as.Date(ExitDate, format = "%Y-%m-%d"),
+         LengthofStay = ExitDate - EntryDate,
+         DOB = as.Date(DOB, format = "%Y-%m-%d"),
+         Age = year(as.period(interval(start = DOB, end = EntryDate))),
+         MonthsHomelessPastThreeYears = case_when(MonthsHomelessPastThreeYears == 101 ~ 1,
+                                                  MonthsHomelessPastThreeYears == 102 ~ 2,
+                                                  MonthsHomelessPastThreeYears == 103 ~ 3,
+                                                  MonthsHomelessPastThreeYears == 104 ~ 4,
+                                                  MonthsHomelessPastThreeYears == 105 ~ 5,
+                                                  MonthsHomelessPastThreeYears == 106 ~ 6,
+                                                  MonthsHomelessPastThreeYears == 107 ~ 7,
+                                                  MonthsHomelessPastThreeYears == 108 ~ 8,
+                                                  MonthsHomelessPastThreeYears == 109 ~ 9,
+                                                  MonthsHomelessPastThreeYears == 110 ~ 10,
+                                                  MonthsHomelessPastThreeYears == 111 ~ 11,
+                                                  MonthsHomelessPastThreeYears == 112 ~ 12,
+                                                  MonthsHomelessPastThreeYears == 113 ~ 13)) %>%
+  filter(EntryYear >= 2003 & EntryYear <= 2019)
+
+onentry <- client_list %>%
+  filter(DataCollectionStage == 1) %>%
+  distinct(, .keep_all=TRUE)
+onentry$TotalMonthlyIncome[onentry$IncomeFromAnySource == 0] <- 0
+onentry$CurrentlyFleeing[onentry$DomesticViolenceVictim == 0] <- 0
+
+onentry$ExittoPermanentHousing <- "No"
+onentry$ExittoPermanentHousing[onentry$Destination == 20 | onentry$Destination == 10 | onentry$Destination == 22 | onentry$Destination == 23
+                      | onentry$Destination == 25| onentry$Destination == 19| onentry$Destination == 18| onentry$Destination == 2| onentry$Destination == 20| onentry$Destination == 31| onentry$Destination == 11| onentry$Destination == 3| onentry$Destination == 29] <- "Yes"
+
+onexit <- client_list %>%
+  filter(DataCollectionStage == 3) %>%
+  distinct(, .keep_all=T) %>%
+  rename(IncomeFromAnySourceExit = IncomeFromAnySource,
+         TotalMonthlyIncomeExit = TotalMonthlyIncome,
+         DisabilityTotalExit = DisabilityTotal) %>%
+  select(EnrollmentID, IncomeFromAnySourceExit, TotalMonthlyIncomeExit, DisabilityTotalExit)
+
+entryexit <- merge(onentry, onexit, by="EnrollmentID", all.x=T)
+
+recidivism <- onentry %>%
+  select(PersonalID, ExitDate, ExittoPermanentHousing) %>%
+  arrange(PersonalID, ExitDate) %>%
+  mutate(ExitDate = as.character(ExitDate)) %>%
+  pivot_wider(names_from = ExittoPermanentHousing, values_from=ExitDate) %>%
+  separate(No, c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"), sep=",") %>%
+  separate(Yes, c("AA", "BB", "CC", "DD", "EE"), sep=",") %>%
+  filter(AA != "NULL" & A != "NULL")
+recidivism[-1] <- lapply(recidivism[-1], gsub, pattern = "c(", replacement = "", fixed = TRUE)
+recidivism[-1] <- lapply(recidivism[-1], gsub, pattern = ")", replacement = "", fixed = TRUE)
+recidivism[-1] <- lapply(recidivism[-1], gsub, pattern = "\"", replacement = "", fixed = TRUE)
+
+recidivism <- recidivism %>%
+  mutate_at(vars("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "AA", "BB", "CC", "DD", "EE"), funs(as.Date(., format="%Y-%m-%d")))
+
+recidivism1 <- recidivism %>%
+  filter(AA <= A | AA <= B | AA <= C| AA <= D| AA <= E| AA <= F| AA <= G| AA <= H| AA <= I| AA <= J| AA <= K| AA <= L| AA <= M| AA <= N| AA <= O| AA <= P| AA <= Q| AA <= R| AA <= S| AA <= T| AA <= U| AA <= V| AA <= W| AA <= X | AA <= BB | AA <= CC | AA <= DD | AA <= EE) %>%
+  select(PersonalID, AA) %>%
+  rename(ExitDate = AA)
+
+recidivism2 <- recidivism %>%
+  filter(BB <= A | BB <= B | BB <= C| BB <= D| BB <= E| BB <= F| BB <= G| BB <= H| BB <= I| BB <= J| BB <= K| BB <= L| BB <= M| BB <= N| BB <= O| BB <= P| BB <= Q| BB <= R| BB <= S| BB <= T| BB <= U| BB <= V| BB <= W| BB <= X | BB <= AA | BB <= CC | BB <= DD | BB <= EE) %>%
+  select(PersonalID, BB) %>%
+  rename(ExitDate = BB)
+
+recidivism3 <- recidivism %>%
+  filter(CC <= A | CC <= B | CC <= C| CC <= D| CC <= E| CC <= F| CC <= G| CC <= H| CC <= I| CC <= J| CC <= K| CC <= L| CC <= M| CC <= N| CC <= O| CC <= P| CC <= Q| CC <= R| CC <= S| CC <= T| CC <= U| CC <= V| CC <= W| CC <= X | CC <= AA | CC <= BB | CC <= DD | CC <= EE) %>%
+  select(PersonalID, CC) %>%
+  rename(ExitDate = CC)
+
+recidivism4 <- recidivism %>%
+  filter(DD <= A | DD <= B | DD <= C| DD <= D| DD <= E| DD <= F| DD <= G| DD <= H| DD <= I| DD <= J| DD <= K| DD <= L| DD <= M| DD <= N| DD <= O| DD <= P| DD <= Q| DD <= R| DD <= S| DD <= T| DD <= U| DD <= V| DD <= W| DD <= X | DD <= AA | DD <= BB | DD <= CC | DD <= EE) %>%
+  select(PersonalID, DD) %>%
+  rename(ExitDate = DD)
+
+recidivism5 <- recidivism %>%
+  filter(EE <= A | EE <= B | EE <= C| EE <= D| EE <= E| EE <= F| EE <= G| EE <= H| EE <= I| EE <= J| EE <= K| EE <= L| EE <= M| EE <= N| EE <= O| EE <= P| EE <= Q| EE <= R| EE <= S| EE <= T| EE <= U| EE <= V| EE <= W| EE <= X | EE <= AA | EE <= BB | EE <= CC | EE <= EE) %>%
+  select(PersonalID, EE) %>%
+  rename(ExitDate = EE)
+
+recidivismal <- union(recidivism1, recidivism2, recidivism3, recidivism4, recidivism5)
+
+recidivism <- recidivismal %>%
+  pivot_longer(!PersonalID, values_to = 'ExitDate') %>%
+  filter(!is.na(ExitDate) & name == "ExitDate") %>%
+  select(PersonalID, ExitDate)
+recidivism$Recidivism <- "Yes"
+
+onentry <- merge(onentry, recidivism, by =c("PersonalID", "ExitDate"), all.x=T)
+```
+
+### Introduction
+
+This data looks at Mitch's Place, Emmaus' shelter for individual adults, in the period from 2003 to 2019. This time period follows the introduction of ETO and entry and exit assessments for all clients at the shelter. 2019 is the stopping point because the COVID-19 Pandemic, starting in 2020, presented a significantly changed landscape for congregate shelter, resulting in a dramatically reduced population and longer stays. The fields in the entry assessment expanded beginning in 2010, so for some statistics, such as chronic homelessness, domestic violence, and monthly income, we have to look at changes over a shorter period of time. Overall, though, the data give a solid picture of the characteristics, stays, and outcomes for clients entering Mitch's Place over the last two decades.
+
+### 1. Mitch's Place Clients & Enrollments
+From 2003 to 2019, Mitch's Place provided nearly 200,000 bed nights to 4,000 clients. Many of these clients struggled in and out of homelessness for extended periods of time, with 32% of all clients coming to Mitch's Place two times or more.
+```{r echo=FALSE}
+onentry %>%
+  mutate(LengthofStay = as.numeric(LengthofStay)) %>%
+  mutate(TotalEnrollments = n(), .groups = 'drop',
+         TotalBedNights = sum(LengthofStay)) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  summarise(Clients = n(), .groups = 'drop',
+            Enrollments = mean(TotalEnrollments, na.rm=T),
+                               TotalBedNights = mean(TotalBedNights, na.rm=T)) %>%
+  kbl(caption = "Client and Enrollment Totals, Mitch's Place (2003-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID) %>%
+  summarise(NoOfEntrys = n()) %>%
+  group_by(NoOfEntrys) %>%
+  arrange(NoOfEntrys) %>%
+  mutate(NoOfEntrys = case_when(NoOfEntrys == 1 ~ "1",
+                                NoOfEntrys == 2 ~ "2",
+                                NoOfEntrys == 3 ~ "3",
+                                NoOfEntrys == 4 ~ "4",
+                                NoOfEntrys == 5 ~ "5",
+                                NoOfEntrys == 6 ~ "6",
+                                NoOfEntrys == 7 ~ "7",
+                                NoOfEntrys == 8 ~ "8",
+                                NoOfEntrys == 9 ~ "9",
+                                NoOfEntrys >= 10 ~ "10+")) %>%
+  summarise(NoOfClients = n()) %>%
+  arrange(match(NoOfEntrys, c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"))) %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Number of Entrances per Client, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+
+### 2. Mitch's Place Demographics
+
+The tables below paint a picture of the clients at Mitch's Place based on demographic breakdowns of race, ethnicity, gender, age, domestic violence history, and disability.The population at Mitch's Place is majority White (87%), with the most significant minority being African American (10%). It is majority non-Hispanic (81%) and Male (70%), with an average age of 40. 2/3 of Mitch's clients are between 30-60. 21% of Mitch's Clients have been victims of domestic violence. 83% of all Clients have at least one disabling condition, and 47% have two or more disabling conditions at entry.  
+
+```{r echo=FALSE}
+onentry %>%
+  filter(Race != "") %>%
+  group_by(PersonalID, Race) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Race) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Race of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID, Ethnicity) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Ethnicity) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Ethnicity of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID, Gender) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Gender) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Gender of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID) %>%
+  summarise(Age = mean(Age), .groups='drop') %>%
+  mutate(AgeGroup = case_when(
+    Age >= 0 & Age < 19 ~ "19 or Younger",
+    Age >= 20 & Age < 30 ~ "20-29",
+    Age >= 30 & Age < 40 ~ "30-39",
+    Age >= 40 & Age < 50 ~ "40-49",
+    Age >= 50 & Age < 60 ~ "50-59",
+    Age >= 60 ~ "60 or older")) %>%
+  group_by(AgeGroup) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Ages of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(DomesticViolenceVictim != 8 & !is.na(DomesticViolenceVictim)) %>%
+  group_by(PersonalID) %>%
+  mutate(DomesticViolence = if_else(sum(DomesticViolenceVictim) >= 1, "Yes", "No")) %>%
+  distinct(PersonalID, .keep_all = T) %>%
+  group_by(DomesticViolence) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Victims of Domestic Violence at Mitch's Place (2003-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(!is.na(DisabilityTotal)) %>%
+  arrange(PersonalID, desc(EntryDate)) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(DisabilityTotal) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Disability Frequencies of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position') %>%
+  footnote(general = "Reported Disabilities include: Mental Health Problems, Developmental Disabilities, Physical Disabilities, HIV/AIDS, Chronic Health Conditions, and Substance Abuse", threeparttable = TRUE)
+
+onentry %>%
+  filter(!is.na(IncomeFromAnySource) & IncomeFromAnySource != 8 & IncomeFromAnySource != 99) %>%
+  group_by(IncomeFromAnySource) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Income of Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+  
+### 3. The Typical Mitch's Place Client
+The "average" client at Mitch's comes to the door with 2 disabling conditions, 2 instances totaling 4 months of homelessness in the past three years, and \$0  in total monthly income.
+  
+```{r echo=FALSE}
+onentry %>%
+  summarise("# of Disabling Conditions" = median(DisabilityTotal, na.rm=T),
+            "# of Months Homeless in Past Three Years" = median(MonthsHomelessPastThreeYears, na.rm=T),
+            "# of Times Homeless in Past Three Years" = median(TimesHomelessPastThreeYears, na.rm=T),
+            "Monthly Income ($)" = median(TotalMonthlyIncome, na.rm=T)) %>%
+  kbl(caption = "Median Values for Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "left", latex_options = 'scale_down') %>%
+  kable_styling(latex_options = 'HOLD_position')
+```
+\newpage
+
+### 4. Living Situations (Where Do The Clients Come From?)
+The table below shows the most recent living situation for clients entering Mitch's Place. Almost half of all clients come from a family or friend's apartment or house, and 17% come to Mitch's directly from the street. Less than 5% of all Mitch's Place clients come directly from a rental or owned home, suggesting that most clients have experienced tumultuous living circumstances for a while after an eviction before they end up at our doors. We can also see a dramatic increase over time in the fraction of all entrants who are coming to Mitch's directly from the street, rising from under 10% to over 30% in the last 13 years.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(LivingSituation_1) %>%
+  summarise(Tally = n(), .groups = 'drop') %>%
+  arrange(desc(Tally)) %>%
+  filter(LivingSituation_1 != "" & Tally > 10 & LivingSituation_1 != "Client refused" & LivingSituation_1 != "Client doesn't know" & LivingSituation_1 != "Data Not Collected") %>%
+  mutate(Percent = percent(Tally/sum(Tally),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Living Situations at Entry for Clients at Mitch's Place, 2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(LivingSituation_1 != "" & LivingSituation_1 != "Client refused" & LivingSituation_1 != "Client doesn't know" & LivingSituation_1 != "Data Not Collected") %>%
+  group_by(LivingSituation_1, EntryYear) %>%
+  mutate(LivingS = n()) %>%
+  ungroup() %>%
+  group_by(EntryYear) %>%
+  mutate(AllLivingS = n()) %>%
+  ungroup() %>%
+  group_by(LivingSituation_1, EntryYear) %>%
+  summarise(Habitation = (LivingS/AllLivingS)*100) %>%
+  filter(LivingSituation_1 == "Place Not Meant for Habitation") %>%
+  distinct(LivingSituation_1, .keep_all = T) %>%
+  ggplot(aes(x=EntryYear, y=Habitation)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,40)) + ggtitle("Clients Entering From the Street, Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients From the Street (%)")
+```
+\newpage
+
+### 5. Chronic Homelessness
+Many clients at Mitch's Place have experienced multiple periods of homelessness which may last for many months. 62% of Mitch's Place entrants have had more than one distinct episode of homelessness in the past three years, and 28% have had four or more. 30% of Mitch's entrants have been homeless for a period of 12 months or more in the past three years. 17% of Mitch's clients are considered chronically homeless according to HUD, which means they have had 3 or more distinct bouts of homelessness totaling at least 12 months in the past three years, and have a disabling condition.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+onentry %>%
+  filter(!is.na(TimesHomelessPastThreeYears) & TimesHomelessPastThreeYears != 99) %>%
+  group_by(TimesHomelessPastThreeYears) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Number of Distinct Episodes of Homelessness in the Past Three Years") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(!is.na(MonthsHomelessPastThreeYears)) %>%
+  group_by(MonthsHomelessPastThreeYears) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Months of Homelessness in the Past Three Years") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(!is.na(TimesHomelessPastThreeYears) & !is.na(MonthsHomelessPastThreeYears) & !is.na(DisablingCondition)) %>%
+  mutate(Chronic = if_else(TimesHomelessPastThreeYears >3 & MonthsHomelessPastThreeYears >= 12 & DisablingCondition == 1, 1,0)) %>%
+  group_by(PersonalID) %>%
+  mutate(ChronicHomelessness = if_else(sum(Chronic) >= 1, "Yes", "No")) %>%
+  distinct(PersonalID, .keep_all = T) %>%
+  group_by(ChronicHomelessness) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Chronically Homeless Clients at Mitch's Place (2003-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')         
+```
+
+\newpage
+
+### 6. Year-by-Year Demographic Breakdowns
+
+#### 6A. Enrollments by Year
+Mitch's Place has seen a steady increase in the number of clients coming to its doors, from 300 per year in 2003 to 450 per year in 2019.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  ggplot(aes(x=EntryYear)) + geom_bar(stat="count", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,600)) + ggtitle("Enrollments at Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of Enrollments")
+```
+#### 6B. New Clients by Year
+As the graph below shows, the increase in enrollments has been driven by returning clients, rather than an influx of new clients from outreach or worsening housing market conditions.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  arrange(PersonalID, EntryDate) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(EntryYear) %>%
+  ggplot(aes(x=EntryYear)) + geom_bar(stat="count", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,350)) + ggtitle("New Clients at Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of New Clients")
+```
+  
+#### 6C. New Clients with Income
+Since 2010, Mitch's has seen a 20% increase in the proportion of clients with some form of income at entry to shelter. This raises a concern that more and more low income residents are being forced out of private and even subsidized rentals and into homelessness as a result of increased rents.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  filter(EntryYear >= 2010) %>%
+  arrange(PersonalID, EntryDate) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            income = sum(IncomeFromAnySource[IncomeFromAnySource == 1]),
+            PercentagewithIncome = (income/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=PercentagewithIncome)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,060)) + ggtitle("New Clients at Mitch's Place with Income at Entry (2010-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Entrants with Income (%)")
+```
+
+#### 6D. Average Monthly Income (All Sources)
+This increase in the proportion with income is mirrored by the consistent increase in average monthly income from all sources for Mitch's Clients. Since 2010, this number has increased by 200%, supporting the hypothesis that more clients are coming to Mitch's Place due to conditions in the private housing market. It is still important to note that the average income in 2019 was still less than \$600 dollars, for an annual income of \$7,500. In Haverhill, this represents roughly 10% of the AMI.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  filter(EntryYear >= 2010) %>%
+  arrange(PersonalID, EntryDate) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(EntryYear) %>%
+  summarise(AverageMonthlyIncome = mean(TotalMonthlyIncome, na.rm=T), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=AverageMonthlyIncome)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Average Monthly Income, New Clients at Mitch's Place (2010-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Average Monthly Income ($)")
+```
+
+#### 6E. New Clients with Earned Income
+Interestingly, the proportion of clients with earned income has not consistently increased during this period, suggesting that more people that had previously been making due with SSI, SSDI, or other social safety net programs are no longer able to make ends meet, not that wage earners are being forced into homelessness at a greater rate.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  filter(Earned != 99) %>%
+  filter(EntryYear >= 2010) %>%
+  arrange(PersonalID, EntryDate) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            earnedincome = sum(Earned == 1),
+            percentagewithearned = (earnedincome/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=percentagewithearned)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,40)) + ggtitle("New Clients at Mitch's Place with Earned Income at Entry (2010-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients with Earned Income (%)")
+```
+  
+#### 6F. Average Number of Disabling Conditions
+Since 2003, we can see a slight increase in the average number of disabling conditions. If the percentage of clients with disabilities is increasing, then this might account for the increase in number of clients with income, instead of market housing conditions. 
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  arrange(PersonalID, EntryDate) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(EntryYear) %>%
+  summarise(MeanDisabilityScore = mean(DisabilityTotal, na.rm=T), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=MeanDisabilityScore)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits=c(0,2)) + ggtitle("Average # of Disabling Conditions, New Clients at Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of Disabling Conditions")
+```
+  
+#### 6G. Average Length of Stay
+Since 2007, Mitch's has seen a drop in the average length of stay for clients at the shelter, from over 45 days down to 25. 
+```{r echo=FALSE, message=FALSE, error=FALSE, warning=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  summarise(meanlength = mean(LengthofStay), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=meanlength)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Average Length of Stay at Shelter, by Entry Year (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Average Length of Stay (Days)")
+```
+  
+#### 6E. Percentage Staying Less Than 1 Month and More Than 4 Months
+We can see from the following two graphs that this decline is driven by a reduction in clients with extremely long stays in shelter, rather than an increase in the percentage of clients with very short stays. 
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(onemonth = if_else(LengthofStay < 30, 1,0)) %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            freq = (sum(onemonth)/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=freq)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0, 100)) + ggtitle("Percentage of Clients Staying < 1 Month, by Entry Year (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients Staying < 1 Month (%)")
+
+onentry %>%
+  mutate(onemonth = if_else(LengthofStay >= 120, 1,0)) %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            freq = (sum(onemonth)/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=freq)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0, 10)) + ggtitle("Percentage of Clients Staying > 4 Months, by Entry Year (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Fraction of Clients Staying > 4 Months (%)")
+```
+  
+### 7. Destinations
+The  table below shows the wide range of destinations for clients from Mitch's Place, and the many clients that move from shelter to shelter. The largest share of clients leave Mitch's Place for another shelter or a paid motel. The next highest group, covering 30% in total, are clients who move in with friends, either temporarily or permanently. Notably, there is a significant proportion of the Mitch's Place population with no information on their exit destination (39%).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(Destination_1) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  arrange(desc(NoOfClients)) %>%
+  filter(Destination_1 != "" & Destination_1 != "Client refused" & Destination_1 != "Client doesn't know" & Destination_1 != "Data Not Collected" & Destination_1 != "Exit Interview Not Conducted") %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Exit Destinations for Clients at Mitch's Place (2003-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+  
+#### 7A. Exits to Permanent Housing
+The table below shows the percentage of clients who leave for permanent housing destinations, including private rentals, subsidized units, transitional housing, and other accommodations. Since 2003, Mitch's Place has successfully placed 994 clients into permanent housing, accounting for 25% of all clients served during this time period.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(Exit1 = if_else(ExittoPermanentHousing == "Yes", 1, 0)) %>%
+  group_by(PersonalID) %>%
+  mutate(Exiter = if_else(sum(Exit1) >= 1, "Yes", "No")) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(Exiter) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients))) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Percentage of Mitch's Place Clients Leaving for Permanent Housing (2003-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+#### 7B. Exits to Permanent Housing by Year
+The graph below suggests that Emmaus rapidly improved its ability to place homeless individuals into housing from 2008 to 2011, only to regress back to modest improvements in the latter half of the 2010s.  However, the second graph shows that the meteoric increase in housing placements in 200-2013 was driven mainly by those who moved in permanently with friends and family, not into private or subsidized rentals. When these destinations are excluded, we still see a jump in placements beginning in 2010, but do not see a drop-off in placements.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(ExitYear = format(as.Date(ExitDate, format = "%Y-%m-%d"), "%Y"),
+         Exit1 = if_else(ExittoPermanentHousing == "Yes", 1, 0)) %>%
+  filter(ExitYear < 2020) %>%
+  group_by(ExitYear) %>%
+  summarise(PercentPermanent = sum(Exit1)) %>%
+  ggplot(aes(x=ExitYear, y=PercentPermanent)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Clients Leaving to Housing, Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# Clients Leaving to Housing")
+
+onentry %>%
+  mutate(ExitYear = format(as.Date(ExitDate, format = "%Y-%m-%d"), "%Y"),
+         Exit1 = if_else(ExittoPermanentHousing == "Yes", 1, 0)) %>%
+  filter(ExitYear < 2020 & Destination_1 != "Staying with Family, permanent" & Destination_1 != "Staying with Friends, permanent") %>%
+  group_by(ExitYear) %>%
+  summarise(PercentPermanent = sum(Exit1)) %>%
+  ggplot(aes(x=ExitYear, y=PercentPermanent)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Clients Leaving to Housing (Excluding Staying with Friends & Family)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of Clients Leaving to Housing")
+```
+At this juncture, it is possible that this change is the product of either real shifts in exits or simply changes in reporting from permanent to temporary stays with friends and family from 2013 onward. In section 7E, we will look at recidivism by Exit Destination to understand how "Permanent" those placements from 2010-2013 really were.
+
+#### 7C. Exits to Emergency Shelter by Year
+In the initial table on exit destinations, the most common response was exit to "Emergency Shelter or Paid Motel." The chart below shows the dramatic increase in clients leaving for a paid hotel or different emergency shelter from <5% in 2010 to >50% in 2016. This number has dropped over the past few years, but still accounted for 1/4 of all exits from Mitch's Place in 2019.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  filter(Destination_1 != "" & Destination_1 != "Client refused" & Destination_1 != "Client doesn't know" & Destination_1 != "Data Not Collected" & !is.na(Destination)) %>%
+  group_by(Destination_1, EntryYear) %>%
+  mutate(Dest = n()) %>%
+  ungroup() %>%
+  group_by(EntryYear) %>%
+  mutate(AllDest = n()) %>%
+  ungroup() %>%
+  group_by(Destination_1, EntryYear) %>%
+  summarise(EmergencyShelter = (Dest/AllDest)*100) %>%
+  filter(Destination_1 == "Emergency Shelter or Paid Motel") %>%
+  distinct(Destination_1, .keep_all = T) %>%
+  ggplot(aes(x=EntryYear, y=EmergencyShelter)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,50)) + ggtitle("Percentage of Clients Leaving to Shelter, Mitch's Place (2003-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients Leaving to Shelter (%)")
+```
+  
+#### 7D. Homelessness Recidivism (by Enrollment)
+Recidivism measures the number of homeless individuals who exit into housing only to return to shelter. The table below shows that, out of all distinct exits to housing, 28% returned to shelter at a later date. The next table shows that out of the 333 clients who experienced one instance of homelessness recidivism, 24% experienced a second instance. Thus, the 333 instances of homelessness recidivism involve only 268 distinct clients. 
+```{r echo=FALSE}
+onentry %>%
+  filter(ExittoPermanentHousing == "Yes") %>%
+  mutate(Recidivism = if_else(is.na(Recidivism), "No", "Yes")) %>%
+  group_by(Recidivism) %>%
+  summarise(NoOfCases = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfCases/sum(NoOfCases))) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Recidivism to Homelessness among Leavers to Permanent Housing") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(ExittoPermanentHousing == "Yes" & Recidivism == "Yes") %>%
+  group_by(PersonalID) %>%
+  summarise(RecidivismCount = n(), .groups = 'drop') %>%
+  group_by(RecidivismCount) %>%
+  summarise(NoofClients=n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoofClients/sum(NoofClients))) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Recidivism, Number of Distinct Instances") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+  
+```
+  
+#### 7E. Homelessness Recidivism (by Exit Destination)
+The table below shows that, out of all Exit Destinations, those who leave to stay with Family and Friends are the most likely to return to homelessness (39% and 37% likelihood, respectively). This seems intuitive, as moving into these destinations does not establish a consistent source of income for clients at Exit. Perhaps also unsurprisingly, the next most frequent destination is unsubsidized rentals. Relative to housing with subsidy, it again makes sense that formerly homeless people, with precarious financial, mental, and physical health circumstances, would struggle to make ends meet in the private market.
+```{r echo=FALSE}
+onentry %>%
+  filter(ExittoPermanentHousing == "Yes") %>%
+  group_by(Destination_1) %>%
+  mutate(AllExitNo = n()) %>%
+  ungroup() %>%
+  filter(Recidivism == "Yes") %>%
+  group_by(Destination_1) %>%
+  mutate(RecidivismNo = n()) %>%
+  mutate(Frac = RecidivismNo/AllExitNo,
+    Percent = percent(RecidivismNo/AllExitNo)) %>%
+  select(Destination_1, AllExitNo, RecidivismNo, Frac, Percent) %>%
+  arrange(desc(Frac)) %>%
+  distinct(, .keep_all = T) %>%
+  select(Destination_1, RecidivismNo, AllExitNo, Percent) %>%
+  adorn_totals("row") %>%
+  kbl() %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+  
+### 8. A Model of Successful Exit to Housing
+Below is an attempt to examine the factors that lead some clients to successfully move out of shelter and into permanent housing. The model shows that Income Level, Age, Disability, Time in Shelter, and the number of distinct episodes of homelessness in the past three years are all highly correlated with the likelihood of a given individual moving from Mitch's Place into a form of permanent housing. 
+```{r echo = FALSE, message=FALSE, error=FALSE, warning=FALSE}
+regdata <- onentry %>%
+ filter(!is.na(TimesHomelessPastThreeYears) & !is.na(MonthsHomelessPastThreeYears) & DomesticViolenceVictim != 99 & IncomeFromAnySource != 99 &Gender != "Trans Female") %>%
+  mutate(IncomeFromAnySource = as.character(IncomeFromAnySource),
+         DomesticViolenceVictim = as.character(DomesticViolenceVictim),
+         POC = if_else(Race == "White", "No", "Yes")) %>%
+  mutate(ExittoPermanentHousing = if_else(ExittoPermanentHousing == "Yes", 1, 0),
+         POC = fct_reorder(POC, ExittoPermanentHousing, mean),
+         Gender = fct_reorder(Gender, ExittoPermanentHousing, mean),
+         Ethnicity = fct_reorder(Ethnicity, ExittoPermanentHousing, mean),
+         IncomeFromAnySource = fct_reorder(IncomeFromAnySource, ExittoPermanentHousing, mean),
+         DomesticViolenceVictim = fct_reorder(DomesticViolenceVictim, ExittoPermanentHousing, mean, .desc=T),
+         WeeksinShelter = as.numeric(LengthofStay/7)) %>%
+  mutate(ExittoPermanentHousing = as.factor(ExittoPermanentHousing))
+glm1 <- glm(ExittoPermanentHousing ~ POC + Gender + Ethnicity + IncomeFromAnySource + Age + WeeksinShelter + DomesticViolenceVictim + DisabilityTotal + MonthsHomelessPastThreeYears + TimesHomelessPastThreeYears, data=regdata, family="binomial")
+
+  
+
+rb.fit <- tidy(glm1) %>%
+  mutate(exp_estimate = exp(estimate),
+         logodds = exp_estimate/(1+exp_estimate),
+         lb = exp(estimate - 2*std.error),
+         ub = exp(estimate + 2*std.error))
+
+rb.fit %>%
+  mutate(
+    p.value = scales::pvalue(p.value),
+    term = c("Intercept", "Person of Color", "Female", "Non-Hispanic", "Income From Any Source", "Age", "Weeks in Shelter", "Domestic Violence Victim", "Number of Disabilities", "Months Homeless Past Three Years", "Times Homeless Past Three Years")
+  ) %>%
+  kable(caption = "A Logit Model of Successful Exit to Permanent Housing",
+        col.names = c("Predictor", "B", "SE", "t", "p", "OddsRatio", "LogOdds", "LowerBound", "UpperBound"),
+        digits = c(0,2,3,2,3,3,3,3,3),
+        align = c("l", "r", "r", "r", "r", "r", "r", "r", "r")) %>%
+  kable_styling(full_width = F, position = "center", latex_options = c('HOLD_position', 'scale_down'))
+
+```
+
+```{r include=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+library(caret)
+'%ni%' <- Negate('%in%')  # define 'not in' func
+options(scipen=999)  # prevents printing scientific notations.
+set.seed(100)
+trainDataIndex <- createDataPartition(regdata$ExittoPermanentHousing, p=0.7, list = F)
+trainData <- regdata[trainDataIndex, ]
+testData <- regdata[-trainDataIndex, ]
+
+set.seed(100)
+down_train <- downSample(x = trainData[, colnames(trainData) %ni% "ExittoPermanentHousing"],
+                         y = trainData$ExittoPermanentHousing)
+table(down_train$Class)
+
+logitmod <- glm(Class ~ POC + Gender + Ethnicity + IncomeFromAnySource + Age + WeeksinShelter + DomesticViolenceVictim + DisabilityTotal + MonthsHomelessPastThreeYears + TimesHomelessPastThreeYears, family = "binomial", data=down_train)
+
+summary(logitmod)
+
+testData$Class <- testData$ExittoPermanentHousing
+pred <- predict(logitmod, newdata = testData, type = "response")
+y_pred_num <- ifelse(pred > 0.5, 1, 0)
+y_pred <- factor(y_pred_num, levels=c(0, 1))
+y_act <- testData$Class
+mean(y_pred == y_act, na.rm=T)
+```
+

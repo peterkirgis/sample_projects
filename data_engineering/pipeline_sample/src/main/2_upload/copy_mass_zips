@@ -1,0 +1,4 @@
+COPY INTO mass_zips
+  FROM @firearms_applications_s3_stage
+  PATTERN='.*zipcode.*.csv'
+  ON_ERROR = 'continue';

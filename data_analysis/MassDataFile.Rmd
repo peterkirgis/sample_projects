@@ -1,0 +1,211 @@
+---
+title: "Re-Inspections in the City of Boston"
+author: "Peter Kirgis"
+date: "09/01/2021"
+output: pdf_document
+---
+
+Research Question: How do establishments perform on re-inspections? How long does it take after an initial inspection for establishments to correct all violations?
+
+In observing the dictionaries of the two datasets, it became clear that the calendar year would be a good locus of analysis for understanding improvement of a particular restaurant on re-inspection. According to the dictionary, establishments should undergo an initial yearly inspection, and a failure on that initial inspection will lead to follow-ups throughout the year until violations are resolved.
+
+One of the main challenges with this dataset was that there is no unique identifier for an "inspection cycle" to chart each establishment's progress against. Instead, we have RESULT and RESULTDTTM which, with reference to the last inspection, tell us the circumstances. I decided to solve this problem by creating an inspection year variable and giving identification numbers to each inspection for a given establishment throughout the calendar year so that I could filter out any establishments that passed their initial inspection for the year. Then I could isolate only those establishments that required re-inspection.
+
+In determining how establishments perform on re-inspections, I answered three questions:
+\newline
+1. How long does it take, both in terms of number of inspections and total time in the year, for an establishment to resolve its violations.
+\newline
+2. Do establishments that do not resolve their violations upon re-inspection continue to resolve violations on further re-inspections?
+\newline
+3. Is there any difference in the timeliness of the resolution of critical violations on re-inspection vs. non-critical violations?
+
+As far as my analytical approach, I did not use any regression analysis for this data. I considered attempting to create a linear or logistic model of "time to resolve", but for the time constraints I thought I would be better able to understand the data through charts and tables.
+
+My main finding was that the city of Boston has been largely successful at mitigating violations through re-inspection. The significant majority of establishments resolved all violations within the calendar year, and most did so within a single re-inspection and a short period of time. The data did show hints of "re-inspection burnout" where establishments that failed to resolve violations within the first two re-inspections were unlikely to resolve by the end of the year, and were also unlikely to be re-inspected promptly. On critical violations, the city also seems to be doing a good job, although it might hope for a greater percentage of critical safety violations to be resolved in one week or less, rather than two weeks. 
+
+
+```{r include='FALSE', message=FALSE, warning=FALSE, error=FALSE}
+library(tidyverse)
+library(scales)
+library(kableExtra)
+library(lubridate)
+library(janitor)
+library(tinytex)
+library(float)
+library(stringr)
+```
+
+```{r echo=FALSE}
+violations <- read.csv("/Users/peterkirgis/Downloads/food+establishment+violations.csv")
+grades <- read.csv("/Users/peterkirgis/Downloads/food+establishment+grades.csv")
+
+violations <- violations %>%
+  distinct() %>%
+  mutate(ISSDTTM = as.POSIXct(ISSDTTM, format = "%m/%d/%Y %H:%M"),
+         EXPDTTM = as.POSIXct(EXPDTTM, format = "%m/%d/%Y %H:%M"),
+         RESULTDTTM = as.POSIXct(RESULTDTTM, format = "%m/%d/%Y %H:%M"),
+         VIOLDTTM = as.POSIXct(VIOLDTTM, format = "%m/%d/%Y %H:%M"),
+         NEEDSINSPECT = if_else(RESULT == "HE_Pass" | RESULT == "HE_Filed", 0, 1),
+         INSPECTYEAR = format(RESULTDTTM, "%Y"))
+grades <- grades %>%
+   mutate(ISSDTTM = as.POSIXct(ISSDTTM, format = "%m/%d/%Y %H:%M"),
+         EXPDTTM = as.POSIXct(EXPDTTM, format = "%m/%d/%Y %H:%M"),
+         RESULTDTTM = as.POSIXct(RESULTDTTM, format = "%m/%d/%Y %H:%M"),
+         NEEDSINSPECT = if_else(RESULT == "HE_Pass" | RESULT == "HE_Filed" | RESULT == "HE_NotReq", 0, 1),
+         INSPECTYEAR = format(RESULTDTTM, "%Y"))
+
+gradesviol <- grades %>%
+  select(LICENSENO, RESULTDTTM, SUM_VIOLATIONS, SCORE, GRADE)
+
+violationsgrades <- merge(gradesviol, violations, by=c("LICENSENO", "RESULTDTTM"))
+
+violationsgrades <- violationsgrades %>%
+  mutate(CRITICAL = if_else(VIOLLEVEL == "***" & VIOLSTATUS == "Fail", 1, 0)) %>%
+  group_by(LICENSENO, RESULTDTTM) %>%
+  mutate(CRITICALFAIL = if_else(sum(CRITICAL) >= 1, 1, 0)) %>%
+  distinct(LICENSENO, RESULTDTTM, CRITICALFAIL)
+
+grades <- merge(grades, violationsgrades, all.x=T, by=c("LICENSENO", "RESULTDTTM"))
+
+reinspects <- grades %>%
+  group_by(LICENSENO, INSPECTYEAR) %>%
+  arrange(LICENSENO, RESULTDTTM) %>%
+  mutate(id = row_number()) %>%
+  ungroup() %>%
+  mutate(INITIALFAIL = if_else(id == 1 & NEEDSINSPECT == 1, 1, 0)) %>%
+  group_by(LICENSENO, INSPECTYEAR) %>%
+  mutate(INITIALFAIL = sum(INITIALFAIL)) %>%
+  filter(INITIALFAIL == 1) %>%
+  mutate(RESULTDTTM = as.Date(RESULTDTTM, format = "%Y-%m-%d"),
+         TIMETOFIRST = RESULTDTTM - RESULTDTTM[id  == 1],
+         REDUCEDVIOL = SUM_VIOLATIONS[id == 1] - SUM_VIOLATIONS,
+         REDUCEDPCT = (SUM_VIOLATIONS[id == 1] - SUM_VIOLATIONS)/SUM_VIOLATIONS[id == 1],
+         RESOLVED = if_else(SUM_VIOLATIONS == 0, "Yes", "No"),
+         CRITICALRESOLVED = if_else(CRITICALFAIL - CRITICALFAIL[id == 1] == -1, "Yes", "No")) %>%
+  ungroup() %>%
+  mutate(INITIALFAILCRITICAL = if_else(id == 1 & CRITICALFAIL == 1, 1, 0)) %>%
+  group_by(LICENSENO, INSPECTYEAR) %>%
+  mutate(INITIALFAILCRITICAL = sum(INITIALFAILCRITICAL)) %>%
+  ungroup() %>%
+  filter(id != 1)
+```
+\newpage
+
+#### 1. How many businesses started the year with a failed inspection but ended the year with no violations?  
+  
+The table below tells a positive story of Goodeat's ability to improve the safety of restaurants through inspection. Of all restaurants who began a given year with a failed inspection, 80% ended the year with no violations at all. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+reinspects %>%
+  arrange(LICENSENO, INSPECTYEAR, desc(id)) %>%
+  distinct(LICENSENO, INSPECTYEAR, .keep_all=T) %>%
+  group_by(RESOLVED) %>%
+  summarise(Estabs= n()) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Resolution of Violations upon Re-Inspection") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+#### 2. How many inspections did it take for each of these businesses to get to no violations?
+  
+The table below shows that the majority (78%) of establishments resolved all violations upon a single re-inspection. REINSPECTTIME shows that the median time between the first and second re-inspection was 8 days, and that the median time between the first and third was 19 days. The data shows that two followups are often done in quick procession, and if violations are not resolved after the third, the next re-inspection will have a much longer time gap.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+reinspects %>%
+  arrange(LICENSENO, INSPECTYEAR, TIMETOFIRST) %>%
+  filter(RESOLVED == "Yes") %>%
+  distinct(LICENSENO, INSPECTYEAR, .keep_all=T) %>%
+  mutate(INSPEC_IN_YEAR = id) %>%
+  group_by(INSPEC_IN_YEAR) %>%
+  summarise(Estabs = n(),
+            REINSPECTTIME = median(TIMETOFIRST)) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Number of Inspections to Resolution") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+#### 3. How long are these establishments taking to resolve the violations?
+  
+The table and histogram below show that, for establishments that resolve all of their violations in a given year, most resolve all violations within a few weeks. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height='35%'}
+reinspects %>%
+  arrange(LICENSENO, INSPECTYEAR, TIMETOFIRST) %>%
+  filter(RESOLVED == "Yes") %>%
+  distinct(LICENSENO, INSPECTYEAR, .keep_all=T) %>%
+  mutate(RESOLVEDTIME = case_when(TIMETOFIRST < 7 ~ "Less than one week",
+                                TIMETOFIRST >= 7 & TIMETOFIRST < 30 ~ "Less than one month",
+                                TIMETOFIRST >= 30 & TIMETOFIRST < 180 ~ "Less than six months",
+                                TIMETOFIRST >= 180 ~ "Greater than six months")) %>%
+  group_by(RESOLVEDTIME) %>%
+  summarise(Estabs = n()) %>%
+  arrange(match(RESOLVEDTIME, c("Less than one week", "Less than one month", "Less than six months", "Greater than six months"))) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Timeframe for Resolution") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+reinspects %>%
+  arrange(LICENSENO, INSPECTYEAR, TIMETOFIRST) %>%
+  filter(RESOLVED == "Yes") %>%
+  distinct(LICENSENO, INSPECTYEAR, .keep_all=T) %>%
+  mutate(TIMETOFIRST = TIMETOFIRST/7) %>%
+  ggplot(aes(x=TIMETOFIRST)) + geom_histogram(color="black", fill="white", binwidth = 2) + ggtitle("Time to Resolve All Violations (weeks)") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+#### 4. Are establishments continuing to improve with each progressive inspection?  
+  
+The chart below shows that establishments continue to reduce the number of violations from their initial failed inspection until they reach 10 inspections, at which point they begin to increase the number of violations, relatively speaking. The graph is likely influenced restaurants with many violations requiring many inspections and failing to make improvements, not just that establishments make improvements but ultimately give up towards the end of the year if they have not resolved inspections. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height='35%'}
+reinspects %>%
+  group_by(id) %>%
+  summarise(MEANREDUCEDVIOL = mean(REDUCEDVIOL)) %>%
+  ggplot(aes(x=id, y=MEANREDUCEDVIOL)) + geom_point(stat="identity", fill="steelblue") + geom_line() + xlab("Inspection in Calendar Year") + ylab("Reduction in Violations From First Inspection") + scale_x_continuous(breaks = seq(2,16,2)) + ggtitle("Reduction in Violations from Initial Inspection") + theme(plot.title = element_text(hjust = 0.5))
+```
+  
+#### 5.How do establishments do in remedying critical violations in re-inspection? How long does this take?
+  
+  The data on critical violations also reflects well on the inspection process for the city of Goodeats. The table below shows us that 98% of all critical violations are resolved, and the median time to resolve critical violations is 8 days. The data does show that very few critical violations are resolved within one week, but that most are resolved within two weeks.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+reinspects %>%
+  filter(INITIALFAILCRITICAL == 1) %>%
+  arrange(LICENSENO, INSPECTYEAR, desc(id)) %>%
+  distinct(LICENSENO, INSPECTYEAR, .keep_all = T) %>%
+  group_by(CRITICALRESOLVED) %>%
+  summarise(Estabs = n()) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Establishments Resolving Critical Violations") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+reinspects %>%
+  filter(INITIALFAILCRITICAL == 1) %>%
+  arrange(LICENSENO, INSPECTYEAR, id) %>%
+  distinct(LICENSENO, INSPECTYEAR, CRITICALRESOLVED, .keep_all = T) %>%
+  filter(CRITICALRESOLVED == "Yes") %>%
+  group_by(CRITICALRESOLVED) %>%
+  summarise(`AvgTimetoReinspect (days)` = median(TIMETOFIRST),
+            Estabs = n()) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Time to Resolve Initial Critical Violation") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+reinspects %>%
+  filter(INITIALFAILCRITICAL == 1) %>%
+  arrange(LICENSENO, INSPECTYEAR, id) %>%
+  distinct(LICENSENO, INSPECTYEAR, CRITICALRESOLVED, .keep_all = T) %>%
+  filter(CRITICALRESOLVED == "Yes") %>%
+  group_by(CRITICALRESOLVED) %>%
+  mutate(RESOLVEDTIME = case_when(TIMETOFIRST < 7 ~ "Less than one week",
+                                TIMETOFIRST >= 7 & TIMETOFIRST < 14 ~ "Less than two weeks",
+                                TIMETOFIRST >= 14 & TIMETOFIRST < 21 ~ "Less than three weeks",
+                                TIMETOFIRST >= 21 ~ "Greater than three weeks")) %>%
+  group_by(RESOLVEDTIME) %>%
+  summarise(Estabs = n()) %>%
+  arrange(match(RESOLVEDTIME, c("Less than one week", "Less than two weeks", "Less than three weeks", "Greater than three weeks"))) %>%
+  mutate(Percent = percent(Estabs/sum(Estabs), 1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Timeframe for Resolution") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+```

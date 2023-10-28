@@ -1,0 +1,6 @@
+CREATE
+OR REPLACE TABLE mass_zips(
+    zip_code VARCHAR(10),
+    city_town VARCHAR(100),
+    region_name VARCHAR(100)
+);

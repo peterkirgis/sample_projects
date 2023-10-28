@@ -1,0 +1,8 @@
+create or replace file format s3_file_format
+type = csv
+field_delimiter = ','
+skip_header = 1
+DATE_FORMAT = '<string>'
+FIELD_OPTIONALLY_ENCLOSED_BY = '"' 
+null_if = ('NULL')
+empty_field_as_null = true;

@@ -1,0 +1,31 @@
+CREATE
+OR REPLACE TABLE license_status_summary AS
+SELECT
+    date_part(YEAR, application_date) AS YEAR,
+    licensing_authority,
+    license_type,
+    COUNT(application_date) AS applications_started,
+    COUNT(issue_date) AS issued,
+    COUNT(denial_date) AS denied,
+    SUM(
+        CASE
+            WHEN status = 'Revoked' THEN 1
+            ELSE 0
+        END
+    ) AS revoked,
+    SUM(
+        CASE
+            WHEN status = 'Suspended' THEN 1
+            ELSE 0
+        END
+    ) AS suspended
+FROM
+    standardization.standardized_applications
+GROUP BY
+    date_part(YEAR, application_date),
+    licensing_authority,
+    license_type
+ORDER BY
+    licensing_authority,
+    YEAR,
+    license_type;

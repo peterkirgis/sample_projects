@@ -1,0 +1,121 @@
+CREATE OR REPLACE TASK reporting 
+ WAREHOUSE = COMPUTE_WH
+ AFTER data_standardization 
+AS 
+ BEGIN 
+    TRUNCATE TABLE city_pops_18_plus;
+
+    INSERT INTO
+        city_pops_18_plus (
+            SELECT
+                CASE
+                    WHEN town = 'Manchester-by-the-Sea' THEN 'Manchester'
+                    ELSE town
+                END AS "Town",
+                total AS "Total"
+            FROM
+                upload.city_pops_18_plus);
+
+    TRUNCATE TABLE REPORTING.APPLICATIONS;
+
+    INSERT INTO
+        REPORTING.APPLICATIONS (
+            SELECT
+                application_date AS "Application Date",
+                licensing_authority AS "Licensing Authority",
+                license_type AS "License Type",
+                application_type AS "Application Type",
+                applicant_city AS "Applicant City",
+                applicant_zip AS "Applicant Zip",
+                sex AS "Sex",
+                issue_date AS "Issue Date",
+                expiration_date AS "Expiration Date",
+                denial_date AS "Denial Date",
+                restriction AS "Restriction",
+                status AS "Status",
+                'Started' AS "Application Status",
+                CASE
+                    WHEN issue_date IS NULL
+                    AND denial_date IS NOT NULL THEN 'Denied'
+                    WHEN issue_date IS NOT NULL THEN 'Issued'
+                    ELSE 'Incomplete'
+                END AS "Application Issue Status",
+                CASE
+                    WHEN status = 'Active' THEN 'Active'
+                    WHEN status = 'Revoked' THEN 'Revoked'
+                    WHEN status = 'Suspended' THEN 'Suspended'
+                    WHEN status = 'Expired'
+                    OR expiration_date IS NOT NULL THEN 'Expired'
+                    WHEN status IS NULL THEN 'None'
+                    ELSE 'Other'
+                END AS "License Status"
+            FROM
+                standardization.standardized_applications
+            WHERE
+                license_type IN (
+                    'Resident CLASS A Large Capacity License to Carry Firearms',
+                    'Firearms Identification Card',
+                    'Non Resident CLASS A Large Capacity Temp. License to Carry Firearms',
+                    'Resident License to Possess a Machine Gun',
+                    'Resident Alien Permit to Possess Non-Capacity Rifle/Shotgun',
+                    'Non-Resident CLASS A Large Capacity Firearms Employemnt/Military Temp. LTC',
+                    'Resident CLASS B Non-Large Capacity License to Carry Firearms'
+                )
+        );
+
+    TRUNCATE TABLE REPORTING.LICENSE_STATUS_SUMMARY;
+
+    INSERT INTO
+        REPORTING.LICENSE_STATUS_SUMMARY (
+            SELECT
+                date_part(YEAR, application_date) AS YEAR,
+                licensing_authority,
+                license_type,
+                COUNT(application_date) AS applications_started,
+                COUNT(issue_date) AS issued,
+                COUNT(denial_date) AS denied,
+                SUM(
+                    CASE
+                        WHEN status = 'Revoked' THEN 1
+                        ELSE 0
+                    END
+                ) AS revoked,
+                SUM(
+                    CASE
+                        WHEN status = 'Suspended' THEN 1
+                        ELSE 0
+                    END
+                ) AS suspended
+            FROM
+                standardization.standardized_applications
+            GROUP BY
+                date_part(YEAR, application_date),
+                licensing_authority,
+                license_type
+            ORDER BY
+                licensing_authority,
+                YEAR,
+                license_type
+        );
+
+    TRUNCATE TABLE REPORTING.ACTIVE_LICENSES;
+
+    INSERT INTO
+        REPORTING.ACTIVE_LICENSES (
+            SELECT
+                licensing_authority,
+                license_type,
+                COUNT(*) AS COUNT
+            FROM
+                standardization.standardized_applications
+            WHERE
+                status = 'Active'
+            GROUP BY
+                licensing_authority,
+                license_type
+            ORDER BY
+                licensing_authority,
+                license_type ASC
+        );
+
+END;

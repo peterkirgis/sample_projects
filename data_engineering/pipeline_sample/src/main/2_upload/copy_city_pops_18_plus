@@ -1,0 +1,4 @@
+COPY INTO city_pops_18_plus
+  FROM @firearms_applications_s3_stage
+  PATTERN='.*city_pops.*.csv'
+  ON_ERROR = 'continue';

@@ -1,0 +1,9 @@
+CREATE OR REPLACE TABLE city_pops_18_plus AS
+    SELECT
+        CASE
+            WHEN town = 'Manchester-by-the-Sea' THEN 'Manchester'
+            ELSE town
+        END AS "Town",
+        total AS "Total"
+    FROM
+        upload.city_pops_18_plus

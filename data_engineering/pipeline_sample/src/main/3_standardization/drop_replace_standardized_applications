@@ -1,0 +1,130 @@
+CREATE
+OR REPLACE TABLE standardized_applications AS
+SELECT
+    application_date,
+    licensing_authority,
+    license_type,
+    application_type,
+    CASE
+        WHEN (
+            applicant_city IN (
+                SELECT
+                    DISTINCT city_town
+                FROM
+                    upload.mass_zips
+            )
+            AND applicant_zip IN (
+                SELECT
+                    DISTINCT zip_code
+                FROM
+                    upload.mass_zips
+            )
+        )
+        OR applicant_city IN (
+            'AQUINNAH',
+            'CLARKSBURG',
+            'NEW ASHFORD',
+            'HANCOCK',
+            'ALFORD',
+            'HAWLEY',
+            'PERU',
+            'WASHINGTON',
+            'MOUNT WASHINGTON',
+            'TOLLAND',
+            'MONTGOMERY',
+            'WESTHAMPTON',
+            'LEYDEN',
+            'PELHAM',
+            'PHILLIPSTON',
+            'TYNGSBOROUGH',
+            'NORTH ATTLEBOROUGH',
+            'MIDDLEBOROUGH'
+        ) THEN INITCAP(applicant_city)
+        WHEN applicant_city = 'MANCHESTER BY THE SEA' THEN 'Manchester'
+        ELSE 'Out of State'
+    END AS applicant_city,
+    applicant_zip,
+    applicant_state,
+    applicant_country,
+    sex,
+    issue_date,
+    expiration_date,
+    denial_date,
+    restriction,
+    status
+FROM
+    (
+        SELECT
+            application_date,
+            licensing_authority,
+            license_type,
+            application_type,
+            CASE
+                WHEN b.zip_code IS NULL
+                AND a.applicant_zip IS NOT NULL THEN a.applicant_city
+                WHEN a.applicant_city IN (
+                    'AQUINNAH',
+                    'CLARKSBURG',
+                    'NEW ASHFORD',
+                    'HANCOCK',
+                    'ALFORD',
+                    'HAWLEY',
+                    'PERU',
+                    'WASHINGTON',
+                    'MOUNT WASHINGTON',
+                    'TOLLAND',
+                    'MONTGOMERY',
+                    'WESTHAMPTON',
+                    'LEYDEN',
+                    'PELHAM',
+                    'PHILLIPSTON',
+                    'TYNGSBOROUGH',
+                    'NORTH ATTLEBOROUGH',
+                    'MANCHESTER BY THE SEA',
+                    'MIDDLEBOROUGH'
+                ) THEN a.applicant_city
+                WHEN b.zip_code IS NOT NULL THEN b.city_town
+                ELSE NULL
+            END AS applicant_city,
+            applicant_zip,
+            'MA' AS applicant_state,
+            'USA' AS applicant_country,
+            CASE
+                WHEN sex IS NULL THEN 'NOT REPORTED'
+                ELSE sex
+            END AS sex,
+            issue_date,
+            expiration_date,
+            denial_date,
+            restriction,
+            status
+        FROM
+            (
+                SELECT
+                    application_date,
+                    licensing_authority,
+                    license_type,
+                    application_type,
+                    applicant_city,
+                    CASE
+                        WHEN LENGTH(SPLIT_PART(applicant_zip, '.', 1)) = 4 THEN '0' || SPLIT_PART(applicant_zip, '.', 1)
+                        WHEN LENGTH(applicant_zip) > 5
+                        OR LENGTH(applicant_zip) < 4 THEN NULL
+                        ELSE SPLIT_PART(applicant_zip, '.', 1)
+                    END AS applicant_zip,
+                    sex,
+                    issue_date,
+                    expiration_date,
+                    CASE
+                        WHEN denial_date < application_date THEN NULL
+                        ELSE denial_date
+                    END AS denial_date,
+                    restriction,
+                    status
+                FROM
+                    upload.temp_upload_applications
+            ) a
+            LEFT JOIN upload.mass_zips b ON a.applicant_zip = b.zip_code
+    ) a
+WHERE
+    application_date IS NOT NULL;

@@ -1,0 +1,679 @@
+---
+title: "Emmaus Family Shelter Data, 2011-2019"
+author: "Peter Kirgis"
+date: "08/11/2021"
+output: pdf_document
+---
+```{r setup, include='FALSE', message=FALSE, warning=FALSE, error=FALSE}
+library(tidyverse)
+library(scales)
+library(reshape2)
+library(DBI)
+library(broom)
+library(eeptools)
+library(aod)
+library(forcats)
+library(jtools)
+library(kableExtra)
+library(lubridate)
+library(janitor)
+library(tinytex)
+library(float)
+library(ftExtra)
+```
+
+```{r include='FALSE', message=FALSE, warning=FALSE, error=FALSE}
+client_list <- read.csv("/Users/Admin/Documents/My Drive/EmmausData/FamilyShelter200_2021/allfamenrolls.csv")
+
+#convert demographics into categorical variables
+
+client_list$Gender[client_list$Gender== "True"] <- "Male"
+client_list$Gender[client_list$Gender== "False"] <- "Female"
+client_list$Gender[client_list$Gender==2] <- "Trans Female"
+
+client_list$Ethnicity[client_list$Ethnicity==1] <- "Hispanic"
+client_list$Ethnicity[client_list$Ethnicity==0] <- "Non-Hispanic"
+
+
+#create age variable and convert destination to categorical
+
+
+client_list$Destination_1 <- ""
+client_list$Destination_1[client_list$Destination == 13] <- "Staying with Friends, temporary"
+client_list$Destination_1[client_list$Destination == 12] <- "Staying with Family, temporary"
+client_list$Destination_1[client_list$Destination == 1] <- "Emergency Shelter or Paid Motel"
+client_list$Destination_1[client_list$Destination == 6] <- "Hospital, non-psychiatric"
+client_list$Destination_1[client_list$Destination == 20] <- "Rental by Client, other subsidy"
+client_list$Destination_1[client_list$Destination == 16] <- "Place Not Meant for Habitation"
+client_list$Destination_1[client_list$Destination == 10] <- "Rental by Client, no subsidy"
+client_list$Destination_1[client_list$Destination == 17] <- "Other"
+client_list$Destination_1[client_list$Destination == 7] <- "Prison or Juvenile Detention Facility"
+client_list$Destination_1[client_list$Destination == 22] <- "Staying with Family, permanent"
+client_list$Destination_1[client_list$Destination == 23] <- "Staying with Friends, permanent"
+client_list$Destination_1[client_list$Destination == 25] <- "Nursing Home"
+client_list$Destination_1[client_list$Destination == 19] <- "Rental by Client, VASH Subsidy"
+client_list$Destination_1[client_list$Destination == 18] <- "Safe Haven"
+client_list$Destination_1[client_list$Destination == 2] <- "Transitional Housing"
+client_list$Destination_1[client_list$Destination == 4] <- "Psychiatric Hospital"
+client_list$Destination_1[client_list$Destination == 5] <- "Substance Abuse Treatment"
+client_list$Destination_1[client_list$Destination == 31] <- "Rental by client, with RRH or equivalent subsidy"
+client_list$Destination_1[client_list$Destination == 24] <- "Deceased"
+client_list$Destination_1[client_list$Destination == 8] <- "Client doesn't know"
+client_list$Destination_1[client_list$Destination == 9] <- "Client refused"
+client_list$Destination_1[client_list$Destination == 99] <- "Data Not Collected"
+client_list$Destination_1[client_list$Destination == 30] <- "Exit Interview Not Conducted"
+client_list$Destination_1[client_list$Destination == 36] <- "Staying or living in a friend's room, apartment or house"
+client_list$Destination_1[client_list$Destination == 35] <- "Staying or living in a family member's room, apartment or house"
+client_list$Destination_1[client_list$Destination == 14] <- "Hotel Paid for without emergency shelter voucher"
+client_list$Destination_1[client_list$Destination == 11] <- "Owned by client, no ongoing housing subsidy"
+client_list$Destination_1[client_list$Destination == 3] <- "Permanent housing (other than RRH) for formerly homeless persons"
+client_list$Destination_1[client_list$Destination == 29] <- "Residential project or halfway house with no homeless criteria"
+
+
+client_list$LivingSituation_1 <- ""
+client_list$LivingSituation_1[client_list$LivingSituation == 13] <- "Staying with Friends, temporary"
+client_list$LivingSituation_1[client_list$LivingSituation == 12] <- "Staying with Family, temporary"
+client_list$LivingSituation_1[client_list$LivingSituation == 1] <- "Emergency Shelter or Paid Motel"
+client_list$LivingSituation_1[client_list$LivingSituation == 6] <- "Hospital, non-psychiatric"
+client_list$LivingSituation_1[client_list$LivingSituation == 20] <- "Rental by Client, other subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 16] <- "Place Not Meant for Habitation"
+client_list$LivingSituation_1[client_list$LivingSituation == 10] <- "Rental by Client, no subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 17] <- "Other"
+client_list$LivingSituation_1[client_list$LivingSituation == 7] <- "Prison or Juvenile Detention Facility"
+client_list$LivingSituation_1[client_list$LivingSituation == 22] <- "Staying with Family, permanent"
+client_list$LivingSituation_1[client_list$LivingSituation == 23] <- "Staying with Friends, permanent"
+client_list$LivingSituation_1[client_list$LivingSituation == 25] <- "Nursing Home"
+client_list$LivingSituation_1[client_list$LivingSituation == 19] <- "Rental by Client, VASH Subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 18] <- "Safe Haven"
+client_list$LivingSituation_1[client_list$LivingSituation == 2] <- "Transitional Housing"
+client_list$LivingSituation_1[client_list$LivingSituation == 4] <- "Psychiatric Hospital"
+client_list$LivingSituation_1[client_list$LivingSituation == 5] <- "Substance Abuse Treatment"
+client_list$LivingSituation_1[client_list$LivingSituation == 36] <- "Staying or living in a friend's room, apartment or house"
+client_list$LivingSituation_1[client_list$LivingSituation == 35] <- "Staying or living in a family member's room, apartment or house"
+client_list$LivingSituation_1[client_list$LivingSituation == 14] <- "Hotel Paid for without emergency shelter voucher"
+
+client_list$LivingSituation_1[client_list$LivingSituation == 31] <- "Rental by client, with RRH or equivalent subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 24] <- "Deceased"
+client_list$LivingSituation_1[client_list$LivingSituation == 8] <- "Client doesn't know"
+client_list$LivingSituation_1[client_list$LivingSituation == 9] <- "Client refused"
+client_list$LivingSituation_1[client_list$LivingSituation == 99] <- "Data Not Collected"
+client_list$LivingSituation_1[client_list$LivingSituation == 30] <- "Exit Interview Not Conducted"
+client_list$LivingSituation_1[client_list$LivingSituation == 11] <- "Owned by client, no ongoing housing subsidy"
+client_list$LivingSituation_1[client_list$LivingSituation == 3] <- "Permanent housing (other than RRH) for formerly homeless persons"
+client_list$LivingSituation_1[client_list$LivingSituation == 29] <- "Residential project or halfway house with no homeless criteria"
+
+client_list$ExitDate[client_list$EnrollmentID == "57ACBD30E74B42339372E24DB3BA1BD8"] <- "2021-06-11"
+client_list$ExitDate[client_list$EnrollmentID == "62B377A1F8E54B719DF0413C862C6C84"] <- "2021-06-30"
+client_list$ExitDate[client_list$EnrollmentID == "C4D2BE9E4FE448CFB4C91BA56D98AB87"] <- "2021-06-30"
+
+client_list$DomesticViolenceVictim[client_list$DomesticViolenceVictim == "False"] <- 0
+client_list$DomesticViolenceVictim[client_list$DomesticViolenceVictim == "True"] <- 1
+
+client_list$CurrentlyFleeing[client_list$CurrentlyFleeing == 0] <- "False"
+client_list$CurrentlyFleeing[client_list$CurrentlyFleeing == "0"] <- "False"
+client_list$CurrentlyFleeing[client_list$CurrentlyFleeing == ""] <- "False"
+client_list$CurrentlyFleeing[client_list$DomesticViolenceVictim == "False"] <- NA
+
+
+
+
+
+client_list <- client_list %>%
+  select(EnrollmentID, PersonalID, HouseholdID, RelationshipToHoH, FirstName, LastName, DOB, Race, Ethnicity, Gender, EntryDate, ExitDate, LivingSituation, LivingSituation_1, TimesHomelessPastThreeYears, MonthsHomelessPastThreeYears, DomesticViolenceVictim, CurrentlyFleeing, DisablingCondition, DisabilityTotal, IncomeFromAnySource, TotalMonthlyIncome, Earned, Destination, Destination_1, DataCollectionStage) %>%
+  mutate(EntryDate = as.Date(EntryDate, format = "%Y-%m-%d"),
+         EntryYear = format(as.Date(EntryDate, format = "%Y-%m-%d"), "%Y"),
+         ExitDate = as.Date(ExitDate, format = "%Y-%m-%d"),
+         LengthofStay = ExitDate - EntryDate,
+         DomesticViolenceVictim = as.numeric(DomesticViolenceVictim),
+         DOB = as.Date(DOB, format = "%Y-%m-%d"),
+         IncomeFromAnySource = as.numeric(IncomeFromAnySource),
+         Age = year(as.period(interval(start = DOB, end = EntryDate))),
+         MonthsHomelessPastThreeYears = case_when(MonthsHomelessPastThreeYears == 101 ~ 1,
+                                                  MonthsHomelessPastThreeYears == 102 ~ 2,
+                                                  MonthsHomelessPastThreeYears == 103 ~ 3,
+                                                  MonthsHomelessPastThreeYears == 104 ~ 4,
+                                                  MonthsHomelessPastThreeYears == 105 ~ 5,
+                                                  MonthsHomelessPastThreeYears == 106 ~ 6,
+                                                  MonthsHomelessPastThreeYears == 107 ~ 7,
+                                                  MonthsHomelessPastThreeYears == 108 ~ 8,
+                                                  MonthsHomelessPastThreeYears == 109 ~ 9,
+                                                  MonthsHomelessPastThreeYears == 110 ~ 10,
+                                                  MonthsHomelessPastThreeYears == 111 ~ 11,
+                                                  MonthsHomelessPastThreeYears == 112 ~ 12,
+                                                  MonthsHomelessPastThreeYears == 113 ~ 13)) %>%
+  filter(EntryYear >= 2011 & EntryYear <= 2019)
+
+client_list$TotalMonthlyIncome[is.na(client_list$TotalMonthlyIncome)] <- 0
+client_list$Earned[client_list$TotalMonthlyIncome == 0] <- 0
+
+onentry <- client_list %>%
+  filter(DataCollectionStage == 1) %>%
+  group_by(EnrollmentID) %>%
+  mutate(TotalMonthlyIncome = mean(TotalMonthlyIncome)) %>%
+  ungroup() %>%
+  group_by(HouseholdID) %>%
+  mutate(HouseholdSize = n(),
+         HouseholdIncome = sum(TotalMonthlyIncome)) %>%
+  ungroup() %>%
+  filter(RelationshipToHoH == 1) %>%
+  distinct(, .keep_all=TRUE)
+
+onentry$TotalMonthlyIncome[onentry$IncomeFromAnySource == 0] <- 0
+
+onentry$CurrentlyFleeing[onentry$DomesticViolenceVictim == 0] <- "False"
+onentry$CurrentlyFleeing[onentry$DomesticViolenceVictim == 1 & onentry$CurrentlyFleeing != "True"] <- "False"
+
+
+onentry$ExittoPermanentHousing <- "No"
+onentry$ExittoPermanentHousing[onentry$Destination == 20 | onentry$Destination == 10 | onentry$Destination == 22 | onentry$Destination == 23 | onentry$Destination == 25| onentry$Destination == 19| onentry$Destination == 18| onentry$Destination == 2| onentry$Destination == 20| onentry$Destination == 31| onentry$Destination == 11| onentry$Destination == 3| onentry$Destination == 29] <- "Yes"
+
+onexit <- client_list %>%
+  filter(DataCollectionStage == 3) %>%
+  distinct(, .keep_all=T) %>%
+  group_by(EnrollmentID) %>%
+  mutate(TotalMonthlyIncome = mean(TotalMonthlyIncome)) %>%
+  ungroup() %>%
+  group_by(HouseholdID) %>%
+  mutate(HouseholdSizeExit = n(),
+         HouseholdIncomeExit = sum(TotalMonthlyIncome)) %>%
+  ungroup() %>%
+  filter(RelationshipToHoH == 1) %>%
+  distinct(, .keep_all=TRUE) %>%
+  rename(IncomeFromAnySourceExit = IncomeFromAnySource,
+         TotalMonthlyIncomeExit = TotalMonthlyIncome,
+         DisabilityTotalExit = DisabilityTotal,
+         EarnedExit = Earned) %>%
+  select(EnrollmentID, IncomeFromAnySourceExit, TotalMonthlyIncomeExit, HouseholdIncomeExit, EarnedExit, HouseholdSizeExit, DisabilityTotalExit)
+
+onexit$TotalMonthlyIncomeExit[onexit$IncomeFromAnySourceExit == 0] <- 0
+
+entryexit <- merge(onentry, onexit, by="EnrollmentID", all.x=T)
+
+familykids <- client_list %>%
+  filter(RelationshipToHoH == 2 & DataCollectionStage == 1) %>%
+  group_by(HouseholdID) %>%
+  mutate(KidsinHouse = n()) %>%
+  ungroup()
+familykids <- familykids %>%
+  mutate(ExitDate = as.character(ExitDate))
+familykids$ExitDate[is.na(familykids$ExitDate)] <-  "2021-06-30"
+familykids <- familykids %>%
+  mutate(ExitDate = as.Date(ExitDate, format = "%Y-%m-%d"),
+         Age = year(as.period(interval(start = DOB, end = ExitDate))))
+
+adults <- client_list %>%
+  filter((RelationshipToHoH == 1 | RelationshipToHoH == 3) & DataCollectionStage == 1)
+adults <- adults %>%
+  mutate(ExitDate = as.character(ExitDate))
+adults$ExitDate[is.na(adults$ExitDate)] <-  "2021-06-30"
+adults <- adults %>%
+  mutate(ExitDate = as.Date(ExitDate, format = "%Y-%m-%d"),
+         Age = year(as.period(interval(start = DOB, end = ExitDate))))
+```
+
+### Introduction
+
+This data looks at Emmaus' Family Shelter in the period from 2011 to 2019. This time period follows the introduction of ETO and entry and exit assessments for all families in shelter. 2019 is the stopping point because the COVID-19 Pandemic, starting in 2020, presented a significantly changed landscape for shelter, resulting in a dramatically reduced population and longer stays. The data begins in 2011 for a more consistent year-by-year analysis, because while there is some data for a few years before 2011, the total number of clients was low. The data for the 9 years from 2011-2019, however, has very few gaps in entry information, allowing us to make more confident conclusions about the evolution of the families in shelter from year to year.
+
+
+### 1. Family Shelter Clients & Enrollments
+From 2011 to 2019, The Emmaus Family Shelter provided 460,000 bed nights to over 1,000 families and almost 2,000 children. 
+```{r echo=FALSE}
+onentry %>%
+  arrange(PersonalID, desc(EntryDate)) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  mutate(LengthofStay = as.numeric(LengthofStay)) %>%
+  mutate(Clients = sum(HouseholdSize), .groups = 'drop',
+         TotalBedNights = LengthofStay*HouseholdSize) %>%
+  summarise(Families = n(), .groups = 'drop',
+            Clients = mean(Clients, na.rm=T),
+            Children = 1790,
+                               TotalBedNights = sum(TotalBedNights)) %>%
+  kbl(caption = "Client and Enrollment Totals, Family Shelter (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+
+
+### 2. Family Shelter Demographics
+
+The tables below paint a picture of the clients at the Family Shelter based on demographic breakdowns of race, ethnicity, gender, age, domestic violence history, and disability. The demographic characteristics and Health/DV focus on the head of household, to give a more even representation of the distribution of families than "double counting" families with more children. 
+
+#### 2A. Race, Ethnicity, Gender, and Age (Head of Household)
+Similar to the individual shelter population, the majority of families in shelter are White (79%), but are much more ethnically diverse, with 52% of all family households being Hispanic. 95% of all heads of household are women, and 84% of them are between 20 and 40 years old, with over 1/3 between 20 and 25.
+
+```{r echo=FALSE}
+onentry %>%
+  group_by(PersonalID, Race) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Race) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Race of Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID, Ethnicity) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Ethnicity) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Ethnicity of Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID, Gender) %>%
+  summarise(N = n(), .groups = 'drop') %>%
+  group_by(Gender) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Gender of Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  group_by(PersonalID) %>%
+  summarise(Age = mean(Age), .groups='drop') %>%
+  mutate(AgeGroup = case_when(
+    Age >= 0 & Age < 19 ~ "19 or Younger",
+    Age >= 20 & Age < 26 ~ "20-25",
+    Age >= 26 & Age < 30 ~ "25-29",
+    Age >= 30 & Age < 40 ~ "30-39",
+    Age >= 40 & Age < 50 ~ "40-49",
+    Age >= 50 ~ "50 or older")) %>%
+  group_by(AgeGroup) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Ages of Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+#### 2B. Household Characteristics
+The vast majority of households in the family shelter are single parent (86%). The number of children per household ranges from 1-5, but 72% of households have either 1 or 2 children. Almost half of all children in shelter are ages 0-4 (47%), and 83% are under age 11.
+```{r echo=FALSE}
+adults %>%
+  filter(HouseholdID != "") %>%
+  group_by(HouseholdID) %>%
+  summarise(ParentsinHouse = n(), .groups = 'drop') %>%
+  group_by(ParentsinHouse) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  filter(NoOfFams != 3) %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Single Parent vs. Two Parent Households, Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+familykids %>%
+  filter(HouseholdID != "") %>%
+  group_by(KidsinHouse) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Number of Children per Household, Family Shelter (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+familykids %>%
+  mutate(AgeGroup = case_when(
+    Age >= 0 & Age < 5 ~ "0-4",
+    Age >= 5 & Age < 12 ~ "5-11",
+    Age >= 12 & Age < 18 ~ "12-17",
+    Age >= 18 & Age < 50 ~ "18+")) %>%
+  group_by(AgeGroup) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  arrange(match(AgeGroup, c("0-4", "5-11", "12-17", "18+"))) %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Age of Children at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position') %>%
+  footnote(general = "Ages for children are all taken at exit, to include pregnant mothers at entry.")
+```
+#### 2C. Health and Domestic Violence
+Sadly, the family shelter serves many victims of domestic violence, who account for 36% of all heads of household. 7% of all families are actively fleeing domestic violence when they come to our doors. 39% of all family heads have a disabling condition. 
+```{r echo=FALSE}
+dv <- onentry %>%
+  filter(DomesticViolenceVictim != 8 & !is.na(DomesticViolenceVictim)) %>%
+  group_by(PersonalID) %>%
+  mutate(DomesticViolence = if_else(sum(DomesticViolenceVictim) >= 1, "Yes", "No")) %>%
+  distinct(PersonalID, .keep_all = T) %>%
+  group_by(DomesticViolence, CurrentlyFleeing) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row")
+dv$CurrentlyFleeing[dv$DomesticViolence == "No"] <- NA
+dv %>%
+  kbl(caption = "Victims of Domestic Violence at Family Shelter (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(!is.na(DisabilityTotal)) %>%
+  arrange(PersonalID, desc(EntryDate)) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(DisabilityTotal) %>%
+  summarise(NoOfFams = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfFams/sum(NoOfFams),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Disability Frequencies of Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position') %>%
+  footnote(general = "Reported Disabilities include: Mental Health Problems, Developmental Disabilities, Physical Disabilities, HIV/AIDS, Chronic Health Conditions, and Substance Abuse", threeparttable = TRUE)
+```
+  
+### 3. The Typical Family Shelter Client
+The typical head of household at the family shelter is 28 years old, has one child, $428 of monthly income at entry, and stays at shelter for 100 days.
+  
+```{r echo=FALSE}
+onentry %>%
+  filter(HouseholdSize != "") %>%
+  summarise("Household Size" = median(HouseholdSize, na.rm=T),
+            "Age" = median(Age, na.rm=T),
+            "Length of Stay" = median(LengthofStay, na.rm=T),
+            "Monthly Income ($)" = median(HouseholdIncome, na.rm=T)) %>%
+  kbl(caption = "Median Values for Families at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "left", latex_options= 'HoLD_position')
+```
+  
+### 4. Living Situations (Where Do The Clients Come From?)
+The table below shows the most recent living situation for clients entering Family Shelter. Over 1/3 of all families move to Emmaus from another emergency shelter or paid motel, and almost half come from staying with a friend or family. Similar to the Individual Shelter population, we can see a dramatic increase over time in the fraction of all entrants who are coming to Mitch's directly from the street, rising from under 5% to over 15% in the last 10 years, suggesting more families pushed out of an affordable private housing market.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(LivingSituation_1) %>%
+  summarise(Tally = n(), .groups = 'drop') %>%
+  arrange(desc(Tally)) %>%
+  filter(LivingSituation_1 != "" & LivingSituation_1 != "Client refused" & LivingSituation_1 != "Client doesn't know" & LivingSituation_1 != "Data Not Collected") %>%
+  mutate(Percent = percent(Tally/sum(Tally),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Living Situations at Entry for Clients at Family Shelter, 2011-2019") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(LivingSituation_1 != "" & LivingSituation_1 != "Client refused" & LivingSituation_1 != "Client doesn't know" & LivingSituation_1 != "Data Not Collected") %>%
+  group_by(LivingSituation_1, EntryYear) %>%
+  mutate(LivingS = n()) %>%
+  ungroup() %>%
+  group_by(EntryYear) %>%
+  mutate(AllLivingS = n()) %>%
+  ungroup() %>%
+  group_by(LivingSituation_1, EntryYear) %>%
+  summarise(RentalbyClient = (LivingS/AllLivingS)*100) %>%
+  filter(LivingSituation_1 == "Rental by Client, no subsidy") %>%
+  distinct(LivingSituation_1, .keep_all = T) %>%
+  ggplot(aes(x=EntryYear, y=RentalbyClient)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,20)) + ggtitle("Clients Entering From Unsubsidized Rentals, Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients From Unsubsidized Rentals (%)")
+```
+  
+### 5. Recent Homelessness History
+Compared to the individual shelter population, families have many fewer instances of homelessness in their recent history. Only 17% of families have been homeless for more than one time during the past three years, and 19% have been homeless for a period of 6 months or more in the past three years.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+onentry %>%
+  filter(!is.na(TimesHomelessPastThreeYears) & TimesHomelessPastThreeYears != 99 & TimesHomelessPastThreeYears != 8) %>%
+  group_by(TimesHomelessPastThreeYears) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Number of Distinct Episodes of Homelessness in the Past Three Years") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+
+onentry %>%
+  filter(!is.na(MonthsHomelessPastThreeYears)) %>%
+  group_by(MonthsHomelessPastThreeYears) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Months of Homelessness in the Past Three Years") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+      
+```
+
+\newpage
+
+### 6. Year-by-Year Demographic Breakdowns
+
+#### 6A. Enrollments by Year
+The number of new enrollments at the family shelter has remained relatively constant for the past 10 years, consistently between 120 and 160 families each year.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  ggplot(aes(x=EntryYear)) + geom_bar(stat="count", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,200)) + ggtitle("Enrollments at Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of Enrollments")
+```
+
+#### 6B. Average Monthly Income (All Sources)
+Since 2010, the average monthly income of families has increased by 35%, supporting the hypothesis that more clients are coming to Family Shelter due to conditions in the private housing market. It is still important to note that the average income in 2019 was still less than \$700 dollars, for an annual income of \$7=8,400. In Haverhill, this represents roughly 15% of the AMI.
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  summarise(AverageMonthlyIncome = mean(HouseholdIncome, na.rm=T), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=AverageMonthlyIncome)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Average Monthly Income, New Clients at Family Shelter (2010-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Average Monthly Income ($)")
+```
+
+#### 6C. New Clients with Earned Income
+The proportion of families with earned income has nearly doubled over the same period. In 2019, nearly a quarter of all families in shelter were working families. 
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            earnedincome = sum(Earned == 1),
+            percentagewithearned = (earnedincome/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=percentagewithearned)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,25)) + ggtitle("New Clients at Family Shelter with Earned Income at Entry (2010-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients with Earned Income (%)")
+```
+  
+#### 6D. Average Number of Disabling Conditions
+Since 2011, we can see a slight increase in the average number of disabling conditions. If the percentage of clients with disabilities is increasing, then this might account for the increase in number of clients with income, instead of market housing conditions. 
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  summarise(MeanDisabilityScore = mean(DisabilityTotal, na.rm=T), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=MeanDisabilityScore)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits=c(0,1)) + ggtitle("Average # of Disabling Conditions, New Clients at Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# of Disabling Conditions")
+```
+  
+#### 6G. Average Length of Stay
+Since 2011, the average length of stay at the family shelter has increased by 40%. This is further evidence for a rental market that is not affordable for our families.
+```{r echo=FALSE, message=FALSE, error=FALSE, warning=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(EntryYear) %>%
+  summarise(meanlength = mean(LengthofStay), .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=meanlength)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Average Length of Stay at Shelter, by Entry Year (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Average Length of Stay (Days)")
+```
+  
+#### 6E. Percentage Staying More than 1 Year
+The increase in the percentage of families staying 1 year or more shows that this increase is largely driven by an increase in long term stays, not the typical family staying an extra 30 days in shelter. It seems that these families are facing greater barriers to housing than they were 10 years ago. 
+```{r echo=FALSE, fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(onemonth = if_else(LengthofStay >= 360, 1,0)) %>%
+  group_by(EntryYear) %>%
+  summarise(n = n(),
+            freq = (sum(onemonth)/n)*100, .groups = 'drop') %>%
+  ggplot(aes(x=EntryYear, y=freq)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Percentage of Clients Staying > 6 Months, by Entry Year (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients Staying < 1 Month (%)")
+```
+#### Change in Income From Entry to Exit
+
+One key aspect to shelter is providing families with the stability needed to find a job, or get connected to social security or disability payments. The findings over the last 10 years support Emmaus' case work in connecting shelter families to these all important resources. Of the 1,170 families with entry and exit information, 29% of families increased their income during their stay, by an average of \$168 dollars, or 26% of their income at entry. 10% of all families obtained a form of earned income during their stay, a testament to Emmaus career service staff.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+entryexit %>%
+  mutate(ChangeinIncome = HouseholdIncomeExit - HouseholdIncome,
+         GotIncome = IncomeFromAnySourceExit - IncomeFromAnySource,
+         GotEarned = if_else((Earned == 0 | Earned == 99) & EarnedExit == 1, 1, 0),
+         PercentChange = if_else(HouseholdIncome != 0, (HouseholdIncomeExit - HouseholdIncome)/HouseholdIncome, NULL)) %>%
+  mutate(n = mean(ChangeinIncome, na.rm=T),
+         m = mean(PercentChange, na.rm=T),
+         e = sum(GotEarned, na.rm=T)/1170) %>%
+  filter(GotIncome == 1 | ChangeinIncome > 0) %>%
+  summarise(GainedIncome = percent(n()/1170),
+            GainedEarnedIncome = percent(mean(e, na.rm=T)), 
+            AvgChangeinIncome = round(mean(n), digits=2),
+            AvgPercentIncrease = percent(mean(m))) %>%
+  kbl(caption = "Changes in Income from Entry to Exit, Family Shelter (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+  
+### 7. Destinations
+The  table below shows the wide range of destinations for clients from Family Shelter, and the many clients that move from shelter to shelter. The largest share of clients leave Family Shelter for another shelter or a paid motel. The next highest group, covering 30% in total, are clients who move in with friends, either temporarily or permanently. Notably, there is a significant proportion of the Family Shelter population with no information on their exit destination (39%).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  group_by(Destination_1) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  arrange(desc(NoOfClients)) %>%
+  filter(Destination_1 != "" & Destination_1 != "Client refused" & Destination_1 != "Client doesn't know" & Destination_1 != "Data Not Collected" & Destination_1 != "Exit Interview Not Conducted") %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients),1)) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Exit Destinations for Clients at Family Shelter (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+  
+#### 7A. Exits to Permanent Housing
+The table below shows the percentage of clients who leave for permanent housing destinations, including private rentals, subsidized units, transitional housing, and other accommodations. Since 2011, Family Shelter has successfully moved 640 families into permanent housing, over half of all families that entered over that time period.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(Exit1 = if_else(ExittoPermanentHousing == "Yes", 1, 0)) %>%
+  group_by(PersonalID) %>%
+  mutate(Exiter = if_else(sum(Exit1) >= 1, "Yes", "No")) %>%
+  distinct(PersonalID, .keep_all=T) %>%
+  group_by(Exiter) %>%
+  summarise(NoOfClients = n(), .groups = 'drop') %>%
+  mutate(Percent = percent(NoOfClients/sum(NoOfClients))) %>%
+  adorn_totals("row") %>%
+  kbl(caption = "Percentage of Family Shelter Clients Leaving for Permanent Housing (2011-2019)") %>%
+  kable_styling(full_width = F, position = "center", latex_options = 'HOLD_position')
+```
+
+#### 7B. Exits to Permanent Housing by Year
+The graph below shows that the number of exits to permanent increased from 2011 and peaked in 2014 before falling back to a similar level as the start of the decade. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  mutate(ExitYear = format(as.Date(ExitDate, format = "%Y-%m-%d"), "%Y"),
+         Exit1 = if_else(ExittoPermanentHousing == "Yes", 1, 0)) %>%
+  filter(ExitYear < 2020) %>%
+  group_by(ExitYear) %>%
+  summarise(PercentPermanent = sum(Exit1)) %>%
+  ggplot(aes(x=ExitYear, y=PercentPermanent)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + ggtitle("Clients Leaving to Housing, Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="# Clients Leaving to Housing")
+```
+
+#### 7C. Exits to Emergency Shelter by Year
+One concern is the rise of clients leaving the shelter for another emergency shelter or paid motel. As a fraction of all exits, exits to emergency shelter have risen from 11% to 34%. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  filter(Destination_1 != "" & Destination_1 != "Client refused" & Destination_1 != "Client doesn't know" & Destination_1 != "Data Not Collected" & !is.na(Destination)) %>%
+  group_by(Destination_1, EntryYear) %>%
+  mutate(Dest = n()) %>%
+  ungroup() %>%
+  group_by(EntryYear) %>%
+  mutate(AllDest = n()) %>%
+  ungroup() %>%
+  group_by(Destination_1, EntryYear) %>%
+  summarise(EmergencyShelter = (Dest/AllDest)*100) %>%
+  filter(Destination_1 == "Emergency Shelter or Paid Motel") %>%
+  distinct(Destination_1, .keep_all = T) %>%
+  ggplot(aes(x=EntryYear, y=EmergencyShelter)) + geom_bar(stat="identity", width=0.7, fill="steelblue") + scale_y_continuous(limits = c(0,50)) + ggtitle("Percentage of Clients Leaving to Shelter, Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of Clients Leaving to Shelter (%)")
+```
+#### 7C. Exits to Unsubsidized and Subsidized Rentals
+The graph below shows that, over the same period of time, the percentage of clients leaving for unsubsidized rentals has dropped dramatically, from almost 60% of all clients to less than 15%. Over the same period, the percentage of families leaving to housing with subsidies has increased from 2% to 20%. This provides further evidence for the hypothesis that conditions in the private market are dictating the changes we've seen in the family shelter, not a lack of assistance to families.
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, fig.show='asis', fig.align='center', out.height="30%"}
+onentry %>%
+  filter(Destination_1 != "" & Destination_1 != "Client refused" & Destination_1 != "Client doesn't know" & Destination_1 != "Data Not Collected" & !is.na(Destination)) %>%
+  group_by(Destination_1, EntryYear) %>%
+  mutate(Dest = n()) %>%
+  ungroup() %>%
+  group_by(EntryYear) %>%
+  mutate(AllDest = n()) %>%
+  ungroup() %>%
+  group_by(Destination_1, EntryYear) %>%
+  summarise(UnsubRental = (Dest/AllDest)*100) %>%
+  filter((Destination_1 == "Rental by Client, no subsidy" | Destination_1 == "Rental by Client, other subsidy") & EntryYear >= 2013) %>%
+  distinct(Destination_1, .keep_all = T) %>%
+  ggplot(aes(x=EntryYear, y=UnsubRental, fill=Destination_1)) + geom_bar(stat="identity", position='dodge') + scale_y_continuous(breaks = seq(0,60,10)) + ggtitle("Unsubsidized and Subsidized Housing Exits, Family Shelter (2011-2019)") + theme(plot.title = element_text(hjust = 0.5)) + labs(x="Year of Entry", y="Percentage of all Clients (%)")
+
+```
+
+#### 7D. Race and Successful Exit to Housing
+The table below shows the breakdowns by race of key variables relating to successful exit from shelter to permanent housing. One striking figure is the gap between White and African Americans in the rates of successful exit: 58% for White families and 44% for African American families. Initially, we might assume that this is due to discrimination in the housing market, making it harder for African American families to find rental housing, or discrimination within our own shelter case management, where African American families are not prioritized or face cultural barriers with our staff. But there could also be other factors impacting this gap. For example, we observe that the median income of African American families at exit is \$410 compared to \$500 to the median White family. We do not observe any difference in the frequency of domestic violence, and observe a lower frequency of disabling conditions in African American families.
+
+When we look deeper at the exits to housing, we see that there is actually a greater percentage of African American than White families leaving for housing with subsidies (12% vs. 10%), suggesting that it is not discrimination within the case management or shelter staff. We also observe a large gap in the share of families leaving to another shelter (25% vs. 16%). One explanation is that African American families are more likely to move to our shelter from a different town and transfer to a different shelter closer to relatives, jobs, or other considerations. We cannot follow these families after they leave our shelter, so we do not know whether most of the families are moving a single time, or are transient between family shelters. 
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+entryexit %>%
+  mutate(Medianincome = median(HouseholdIncomeExit, na.rm=T),
+         ExittoPermanentHousing = if_else(ExittoPermanentHousing == "Yes", 1,0),
+         DisablingCondition = if_else(DisablingCondition == "True", 1,0),
+         ExittoSubsidized = if_else(Destination_1 == "Rental by Client, other subsidy" | Destination_1 == "Rental by client, with RRH or equivalent subsidy" | Destination_1 == "Permanent housing (other than RRH) for formerly homeless persons", 1,0),
+         ExittoShelter = if_else(Destination_1 == "Emergency Shelter or Paid Motel", 1,0)) %>%
+  group_by(Race) %>%
+  summarise(Tally = n(),
+            'MedianIncome ($)' = median(HouseholdIncomeExit, na.rm=T),
+            'FrequencyDV' = percent(sum(DomesticViolenceVictim)/n()),
+            'DisabilingCondition' = percent(sum(DisablingCondition/n())),
+            'HousingExit (%)' = percent(sum(ExittoPermanentHousing)/n()),
+            'Subsidized (%)' = percent(sum(ExittoSubsidized)/n()),
+            'Shelter (%)' = percent(sum(ExittoShelter)/n())) %>%
+  kbl(caption="Racial Breakdowns of Key Variables Relating to Successful Exit to Housing") %>%
+  kable_styling(position = "center", latex_options = c('HOLD_position', 'scale_down'))
+```
+  
+### 8. A Model of Successful Exit to Housing
+The logistic regression analysis below takes the likelihood that a client will exit to shelter given a set of traits and circumstances including race, ethnicity, age, household size, time in shelter, domestic violence history, disability, and monthly household income. The coefficients on the model show the impact of either 1 unit changes in continuous variables or the presence of a binary categorical variable. Negative coefficients illustrate a variable that reduces the client's likelihood of exiting for housing when controlling for other variables.
+
+The model suggests that being a person of color, spending less time in shelter, and having low household income all lead to a reduction in the likelihood of a successful exit to permanent housing. 
+```{r echo = FALSE, message=FALSE, error=FALSE, warning=FALSE}
+regdata <- entryexit %>%
+  mutate(IncomeFromAnySource = as.character(IncomeFromAnySource),
+         DomesticViolenceVictim = as.character(DomesticViolenceVictim),
+         POC = if_else(Race == "White", "No", "Yes")) %>%
+  mutate(ExittoPermanentHousing = if_else(ExittoPermanentHousing == "Yes", 1, 0),
+         POC = fct_reorder(POC, ExittoPermanentHousing, mean, .desc=T),
+         Gender = fct_reorder(Gender, ExittoPermanentHousing, mean),
+         Ethnicity = fct_reorder(Ethnicity, ExittoPermanentHousing, mean),
+         IncomeFromAnySource = fct_reorder(IncomeFromAnySource, ExittoPermanentHousing, mean),
+         DisablingCondition = fct_reorder(DisablingCondition, ExittoPermanentHousing, mean, .desc=T),
+         DomesticViolenceVictim = fct_reorder(DomesticViolenceVictim, ExittoPermanentHousing, mean, .desc=T),
+         WeeksinShelter = as.numeric(LengthofStay/7),
+         HouseholdIncomeExit = as.numeric(HouseholdIncomeExit)/100) %>%
+  mutate(ExittoPermanentHousing = as.factor(ExittoPermanentHousing))
+glm1 <- glm(ExittoPermanentHousing ~ POC + Ethnicity + Age + HouseholdSize + WeeksinShelter + DomesticViolenceVictim + DisablingCondition + HouseholdIncomeExit, data=regdata, family="binomial")
+
+summary(glm1)
+
+rb.fit <- tidy(glm1) %>%
+  mutate(exp_estimate = exp(estimate),
+         logodds = exp_estimate/(1+exp_estimate),
+         lb = exp(estimate - 2*std.error),
+         ub = exp(estimate + 2*std.error))
+
+rb.fit %>%
+  mutate(
+    p.value = scales::pvalue(p.value),
+    term = c("Intercept", "Person of Color", "Non-Hispanic", "Age", "HouseholdSize", "Weeks in Shelter", "Domestic Violence Victim", "DisablingCondition", "MonthlyHouseholdIncome")
+  ) %>%
+  kable(caption = "A Logit Model of Successful Exit to Permanent Housing",
+        col.names = c("Predictor", "B", "SE", "t", "p", "OddsRatio", "LogOdds", "LowerBound", "UpperBound"),
+        digits = c(0,2,3,2,3,3,3,3,3),
+        align = c("l", "r", "r", "r", "r", "r", "r", "r", "r")) %>%
+  kable_styling(full_width = F, position = "center", latex_options = c('HOLD_position', 'scale_down'))
+
+```
+
+```{r include=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+library(caret)
+'%ni%' <- Negate('%in%')  # define 'not in' func
+options(scipen=999)  # prevents printing scientific notations.
+set.seed(100)
+trainDataIndex <- createDataPartition(regdata$ExittoPermanentHousing, p=0.7, list = F)
+trainData <- regdata[trainDataIndex, ]
+testData <- regdata[-trainDataIndex, ]
+
+set.seed(100)
+down_train <- downSample(x = trainData[, colnames(trainData) %ni% "ExittoPermanentHousing"],
+                         y = trainData$ExittoPermanentHousing)
+table(down_train$Class)
+
+logitmod <- glm(Class ~ POC + Gender + Ethnicity + Age + WeeksinShelter + DomesticViolenceVictim + DisabilityTotal + TotalMonthlyIncome, family = "binomial", data=down_train)
+
+summary(logitmod)
+
+testData$Class <- testData$ExittoPermanentHousing
+pred <- predict(logitmod, newdata = testData, type = "response")
+y_pred_num <- ifelse(pred > 0.5, 1, 0)
+y_pred <- factor(y_pred_num, levels=c(0, 1))
+y_act <- testData$Class
+mean(y_pred == y_act, na.rm=T)
+```
